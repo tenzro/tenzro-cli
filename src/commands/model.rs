@@ -292,9 +292,9 @@ impl ModelDownloadCmd {
         let rpc = RpcClient::new(rpc_url);
         let spinner = output::create_spinner("Requesting model download on node...");
 
-        let result: serde_json::Value = rpc.call("tenzro_downloadModel", serde_json::json!([{
+        let result: serde_json::Value = rpc.call("tenzro_downloadModel", serde_json::json!({
             "model_id": self.model_id
-        }])).await.map_err(|e| anyhow::anyhow!("Download request failed: {}", e))?;
+        })).await.map_err(|e| anyhow::anyhow!("Download request failed: {}", e))?;
 
         spinner.finish_and_clear();
 
@@ -410,9 +410,9 @@ impl ModelServeCmd {
         let rpc = RpcClient::new(rpc_url);
         let spinner = output::create_spinner("Loading model on node...");
 
-        let result: serde_json::Value = rpc.call("tenzro_serveModel", serde_json::json!([{
+        let result: serde_json::Value = rpc.call("tenzro_serveModel", serde_json::json!({
             "model_id": self.model_id
-        }])).await.map_err(|e| anyhow::anyhow!("Serve request failed: {}", e))?;
+        })).await.map_err(|e| anyhow::anyhow!("Serve request failed: {}", e))?;
 
         spinner.finish_and_clear();
 
