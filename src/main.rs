@@ -1135,7 +1135,7 @@ async fn bridge_menu(rpc: &rpc::RpcClient) -> Result<()> {
             output::print_field("Estimated Output", result.get("estimated_output").and_then(|v| v.as_str()).unwrap_or("N/A"));
             output::print_field("Fee", result.get("fee").and_then(|v| v.as_str()).unwrap_or("N/A"));
         }
-        1 | 2 | 3 => {
+        1..=3 => {
             output::print_info("Use the full CLI for this operation: tenzro bridge execute/status/routes");
         }
         _ => {}

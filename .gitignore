@@ -27,3 +27,7 @@
 
 # Claude
 .claude/
+
+# Claude Code
+CLAUDE.md
+.claude/

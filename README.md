@@ -1,257 +1,329 @@
-# Tenzro CLI
+# Tenzro Network CLI
 
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org/)
+The official command-line interface for operating Tenzro Network nodes, managing wallets, models, staking, and governance. Interact with Tenzro Ledger (the L1 settlement layer) and earn TNZO tokens.
 
-The official command-line interface for the **Tenzro Network** — an AI-native, agentic, tokenized settlement layer. Operate nodes, manage wallets, serve AI models, bridge tokens cross-chain, interact with TEEs and ZK proofs, and more.
+## Features
+
+- **Node Management**: Start, stop, and monitor Tenzro Network nodes
+- **Wallet Operations**: Create MPC wallets, check balances, send transactions
+- **Model Management**: List, download, and serve AI models
+- **Staking**: Stake TNZO tokens as validator or provider
+- **Governance**: Participate in on-chain governance and voting
+- **Provider Tools**: Register and manage inference/TEE providers
+- **Inference Requests**: Submit AI inference requests to the network
 
 ## Installation
 
-### Quick install (macOS / Linux)
-
 ```bash
-curl -sSL https://get.tenzro.network | sh
+# From source
+cargo install --path crates/tenzro-cli
+
+# Or build and run directly
+cargo run -p tenzro-cli -- --help
 ```
-
-### Homebrew (macOS / Linux)
-
-```bash
-brew install tenzro/tap/tenzro
-```
-
-### Cargo (Rust)
-
-```bash
-cargo install tenzro-cli
-```
-
-### Download binary
-
-Pre-built binaries for all platforms on the [Releases](https://github.com/tenzro/tenzro-cli/releases) page:
-
-| Platform | Binary |
-|----------|--------|
-| macOS (Apple Silicon) | `tenzro-aarch64-apple-darwin` |
-| macOS (Intel) | `tenzro-x86_64-apple-darwin` |
-| Linux (x86_64) | `tenzro-x86_64-unknown-linux-gnu` |
-| Linux (ARM64) | `tenzro-aarch64-unknown-linux-gnu` |
-| Windows | `tenzro-x86_64-pc-windows-msvc.exe` |
-
-### Docker
-
-```bash
-docker run -it tenzro/cli
-```
-
-### Other package managers
-
-| Manager | Command |
-|---------|---------|
-| Snap | `snap install tenzro` |
-| Scoop (Windows) | `scoop install tenzro` |
-| AUR (Arch) | `yay -S tenzro-cli` |
-| Nix | `nix-env -i tenzro-cli` |
-
-### Build from source
-
-The CLI is part of the [tenzro-network](https://github.com/tenzro/tenzro-network) monorepo. Clone the full workspace and build:
-
-```bash
-git clone https://github.com/tenzro/tenzro-network
-cd tenzro-network
-cargo build --release -p tenzro-cli
-# Binary at: target/release/tenzro
-```
-
-GPU acceleration features (optional):
-
-```bash
-cargo build --release -p tenzro-cli --features metal   # macOS Metal
-cargo build --release -p tenzro-cli --features cuda     # NVIDIA CUDA
-cargo build --release -p tenzro-cli --features rocm     # AMD ROCm
-cargo build --release -p tenzro-cli --features vulkan   # Vulkan
-```
-
-## Interactive Mode
-
-Run `tenzro` with no arguments to enter interactive mode — a navigable menu for discovering and executing commands without memorizing flags:
-
-```
-$ tenzro
-
-  ████████╗███████╗███╗   ██╗███████╗██████╗  ██████╗
-  ╚══██╔══╝██╔════╝████╗  ██║╚══███╔╝██╔══██╗██╔═══██╗
-     ██║   █████╗  ██╔██╗ ██║  ███╔╝ ██████╔╝██║   ██║
-     ██║   ██╔══╝  ██║╚██╗██║ ███╔╝  ██╔══██╗██║   ██║
-     ██║   ███████╗██║ ╚████║███████╗██║  ██║╚██████╔╝
-     ╚═╝   ╚══════╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝
-
-  Connected: rpc.tenzro.network | Block: 5,105,290 | Peers: 3
-
-  What would you like to do?
-
-  > Wallet & Tokens
-    AI Models & Inference
-    Agents & Swarms
-    Bridge & Cross-Chain
-    Identity & Credentials
-    Payments & Settlement
-    Security (Crypto, TEE, ZK)
-    Developer (Apps, Contracts)
-    Network & Governance
-```
-
-Use arrow keys to navigate, Enter to select. Each category opens a sub-menu with the relevant commands and guided inputs.
 
 ## Quick Start
 
 ```bash
-# Join the network (provisions identity, wallet, hardware profile)
-tenzro join --rpc https://rpc.tenzro.network
+# Start a full node
+tenzro node start --role user
 
-# Check your wallet balance
-tenzro wallet balance --rpc https://rpc.tenzro.network
+# Create a new wallet
+tenzro wallet create
 
-# Request testnet TNZO tokens
-tenzro faucet 0xYOUR_ADDRESS --rpc https://rpc.tenzro.network
+# Check your balance
+tenzro wallet balance
 
-# Send TNZO to another address
-tenzro wallet send --to 0xRECIPIENT --amount 10 --rpc https://rpc.tenzro.network
+# List available models
+tenzro model list
 
-# Download and serve an AI model
-tenzro model download gemma-3-4b
-tenzro model serve gemma-3-4b
-
-# Interactive chat with a served model
-tenzro chat gemma-3-4b
-
-# Register an AI agent
-tenzro agent register --name my-agent --capabilities nlp,chain
-
-# Bridge tokens cross-chain
-tenzro bridge quote --from ethereum --to tenzro --amount 100 --token USDC
+# Submit an inference request
+tenzro inference request gemma4-9b "What is Tenzro Network?"
 ```
 
 ## Commands
 
-36 command groups covering the full Tenzro Network feature set:
+### Node Management
 
-| Command | Description |
-|---------|-------------|
-| `tenzro join` | Join the network as a MicroNode (one-click participate) |
-| `tenzro node` | Node management (start, stop, status, config) |
-| `tenzro wallet` | Create wallets, check balances, send TNZO, list accounts |
-| `tenzro model` | Download, serve, stop, delete, and manage AI models |
-| `tenzro chat` | Interactive AI chat with served models (local + network) |
-| `tenzro agent` | Register agents, spawn, swarms, messaging, templates |
-| `tenzro crypto` | Sign, verify, encrypt, decrypt, hash, keygen |
-| `tenzro tee` | TEE detection, attestation, verification, seal/unseal |
-| `tenzro zk` | ZK proof creation, verification, keygen, circuits |
-| `tenzro custody` | MPC wallets, keystores, key rotation, session keys, limits |
-| `tenzro app` | Register apps, manage user wallets, sponsor gas, stats |
-| `tenzro bridge` | Cross-chain bridge (quote, execute, status, routes) |
-| `tenzro debridge` | deBridge DLN cross-chain swaps |
-| `tenzro lifi` | LI.FI bridge aggregation (chains, tokens, routes, quotes) |
-| `tenzro nft` | Create collections, mint, transfer, burn NFTs (ERC-721/1155) |
-| `tenzro compliance` | ERC-3643 compliance (KYC, accreditation, freeze, agents) |
-| `tenzro crosschain` | ERC-7802 cross-chain token operations (mint/burn bridges) |
-| `tenzro events` | Event subscriptions, history, and webhooks |
-| `tenzro token` | Create tokens, info, list, balance, wrap, cross-VM transfer |
-| `tenzro contract` | Deploy smart contracts (EVM, SVM, DAML) |
-| `tenzro identity` | TDIP identity management (register, resolve, credentials) |
-| `tenzro governance` | Proposals, voting, and voting power |
-| `tenzro stake` | Stake/unstake TNZO, view staking info |
-| `tenzro task` | Task marketplace (post, list, get, cancel, quote, assign) |
-| `tenzro marketplace` | Agent template marketplace (list, register, get) |
-| `tenzro skill` | Skills registry (list, register, search, use) |
-| `tenzro tool` | Tools registry / MCP server management |
-| `tenzro canton` | Canton/DAML operations (domains, contracts, commands) |
-| `tenzro escrow` | Escrow, payment channels, delegation, settlement |
-| `tenzro payment` | Payment protocols (MPP, x402) — challenges, pay, sessions |
-| `tenzro provider` | Provider management, pricing, status, model listing |
-| `tenzro schedule` | Provider availability scheduling (set, show, enable) |
-| `tenzro ceremony` | ZK trusted setup ceremony (init, contribute, verify) |
-| `tenzro inference` | Direct inference requests |
-| `tenzro hardware` | Hardware profile detection |
-| `tenzro faucet` | Request testnet TNZO tokens (100 TNZO, 24h cooldown) |
-| `tenzro set-username` | Set your Tenzro username |
-| `tenzro info` | Network information (chain ID, block height, peers, supply) |
-| `tenzro version` | Version info (with `--detailed` for full build info) |
+```bash
+# Start a node with specific role
+tenzro node start --role validator
+tenzro node start --role model-provider
+tenzro node start --role tee-provider
+tenzro node start --role user
 
-Run `tenzro <command> --help` for detailed usage of any command.
+# Check node status
+tenzro node status
+
+# Stop the node
+tenzro node stop
+```
+
+### Wallet Operations
+
+```bash
+# Create a new MPC wallet (2-of-3 threshold by default)
+tenzro wallet create
+
+# Create with custom threshold
+tenzro wallet create --threshold 3 --total-shares 5
+
+# Import existing wallet
+tenzro wallet import <seed-phrase|private-key>
+
+# Check balance
+tenzro wallet balance --address <address>
+
+# Send tokens
+tenzro wallet send <to-address> <amount> --asset TNZO
+
+# Send stablecoins
+tenzro wallet send <to-address> 100 --asset USDC
+
+# List all wallets
+tenzro wallet list
+```
+
+### Model Management
+
+```bash
+# List all available models
+tenzro model list
+
+# Filter by modality
+tenzro model list --modality text
+tenzro model list --modality image
+
+# Show model details
+tenzro model info gemma4-9b --providers
+
+# Download a model
+tenzro model download gemma4-9b
+
+# Start serving a model
+tenzro model serve gemma4-9b --gpus 0,1 --port 8080
+
+# Stop serving
+tenzro model stop gemma4-9b
+```
+
+### Staking
+
+```bash
+# Stake TNZO tokens
+tenzro stake deposit 10000
+
+# Stake as specific provider type
+tenzro stake deposit 10000 --provider-type validator
+
+# Stake with lock period for higher APY
+tenzro stake deposit 10000 --lock-days 180
+
+# Withdraw staked tokens
+tenzro stake withdraw 5000
+
+# View staking information
+tenzro stake info --detailed
+```
+
+### Governance
+
+```bash
+# List active proposals
+tenzro governance list --active
+
+# View detailed proposal info
+tenzro governance list --detailed
+
+# Create a new proposal
+tenzro governance propose \
+  "Increase validator rewards" \
+  "This proposal increases validator rewards by 10%" \
+  --type parameter \
+  --duration-days 14
+
+# Vote on a proposal
+tenzro governance vote prop_001 yes
+tenzro governance vote prop_002 no --reason "Insufficient justification"
+```
+
+### Provider Management
+
+```bash
+# Register as inference provider
+tenzro provider register --type inference --stake 10000
+
+# Register as TEE provider
+tenzro provider register --type tee --stake 15000
+
+# Check provider status
+tenzro provider status --detailed
+
+# List models you're serving
+tenzro provider models
+```
+
+### Inference Requests
+
+```bash
+# Submit text inference
+tenzro inference request gemma4-9b "Explain quantum computing"
+
+# Image generation
+tenzro inference request stable-diffusion-xl "A sunset over mountains"
+
+# With parameters (price in TNZO)
+tenzro inference request gemma4-9b "Write a poem" \
+  --temperature 0.8 \
+  --max-tokens 500 \
+  --max-price 1.0
+
+# Require TEE attestation
+tenzro inference request gpt-4o "Sensitive query" --require-tee
+
+# Save output to file
+tenzro inference request gemma4-9b "Generate code" --output-file result.txt
+```
+
+### Network Information
+
+```bash
+# Show network stats
+tenzro info
+
+# Show version
+tenzro version --detailed
+```
+
+## Global Options
+
+```bash
+# Enable verbose logging
+tenzro --verbose <command>
+
+# JSON output format
+tenzro --format json <command>
+```
 
 ## Configuration
 
-### RPC endpoint
+The CLI stores configuration and wallet data in:
+- Linux: `~/.tenzro/`
+- macOS: `~/.tenzro/`
+- Windows: `%USERPROFILE%\.tenzro\`
 
-Every command that communicates with the network accepts `--rpc`:
+### Directory Structure
+
+```
+~/.tenzro/
+├── config.toml          # CLI configuration
+├── wallets/             # Wallet keystores
+│   ├── wallet_1.json
+│   └── wallet_2.json
+├── data/                # Node data (if running a node)
+│   ├── db/
+│   └── keystore/
+└── models/              # Downloaded models
+    └── gemma4-9b/
+```
+
+## Examples
+
+### Running a Validator Node
 
 ```bash
-tenzro wallet balance --rpc https://rpc.tenzro.network
+# 1. Create wallet for validator
+tenzro wallet create --name validator
+
+# 2. Stake tokens
+tenzro stake deposit 100000 --provider-type validator
+
+# 3. Start validator node
+tenzro node start --role validator --data-dir ~/.tenzro/validator
 ```
 
-The default RPC endpoint is `http://127.0.0.1:8545` (local node).
-
-### Persistent config
-
-The CLI stores configuration at `~/.tenzro/config.json`, shared with the Tenzro Desktop app. Fields include: endpoint, wallet address, DID, display name, role, provider schedule, and pricing.
-
-### Environment variables
-
-| Variable | Description |
-|----------|-------------|
-| `TENZRO_NO_BANNER` | Set to `1` to suppress the startup banner |
-| `TENZRO_SIMULATE_TDX` | Simulate Intel TDX TEE for testing |
-| `TENZRO_SIMULATE_SEV` | Simulate AMD SEV-SNP TEE for testing |
-| `TENZRO_SIMULATE_NITRO` | Simulate AWS Nitro TEE for testing |
-
-### Output format
-
-All commands support `--format json` for machine-readable output:
+### Becoming an Inference Provider
 
 ```bash
-tenzro wallet balance --format json --rpc https://rpc.tenzro.network
+# 1. Register as provider
+tenzro provider register --type inference --stake 10000
+
+# 2. Download models
+tenzro model download gemma4-9b
+tenzro model download stable-diffusion-xl
+
+# 3. Start serving models
+tenzro model serve gemma4-9b --gpus 0
+tenzro model serve stable-diffusion-xl --gpus 1
+
+# 4. Monitor provider status
+tenzro provider status --detailed
 ```
 
-## Live Testnet
-
-| Service | URL |
-|---------|-----|
-| JSON-RPC | `https://rpc.tenzro.network` |
-| Web API | `https://api.tenzro.network` |
-| Faucet | `https://api.tenzro.network/api/faucet` |
-| MCP Server | `https://mcp.tenzro.network/mcp` |
-| A2A Server | `https://a2a.tenzro.network` |
-
-Genesis supply: 1,000,000,000 TNZO. Faucet: 100 TNZO per request, 24h cooldown.
-
-## Architecture
-
-The CLI communicates with Tenzro nodes via JSON-RPC 2.0 over HTTP. For AI model inference, it supports both local execution (via llama.cpp through `tenzro-model`) and network inference via RPC fallback.
-
-```
-tenzro CLI  --->  JSON-RPC 2.0  --->  tenzro-node (port 8545)
-                  HTTP REST     --->  Web API     (port 8080)
-```
-
-Chat sessions are persisted at `~/.tenzro/chat_history/` with session management (`/history`, `/load`).
-
-## Building
-
-This crate is part of the [tenzro-network](https://github.com/tenzro/tenzro-network) Cargo workspace. It depends on internal crates (`tenzro-types`, `tenzro-crypto`, `tenzro-wallet`, `tenzro-node`, `tenzro-model`, `tenzro-zk`) and cannot be built standalone or published to crates.io independently.
+### Participating in Governance
 
 ```bash
-# From the tenzro-network workspace root:
-cargo build --release -p tenzro-cli
+# 1. Check your voting power
+tenzro stake info
+
+# 2. List active proposals
+tenzro governance list --active --detailed
+
+# 3. Vote on proposals
+tenzro governance vote prop_001 yes --reason "Good for the network"
+
+# 4. Create your own proposal
+tenzro governance propose \
+  "Add new stablecoin support" \
+  "Proposal to add DAI as supported stablecoin" \
+  --type parameter
+```
+
+## Development
+
+### Building from Source
+
+```bash
+# Build debug version
+cargo build -p tenzro-cli
+
+# Build release version
+cargo build -p tenzro-cli --release
+
+# Run tests
 cargo test -p tenzro-cli
 ```
 
+### Architecture
+
+The CLI is organized into several modules:
+
+- `main.rs` - Entry point and command routing
+- `output.rs` - Output formatting utilities (tables, progress bars, colors)
+- `commands/` - Command implementations
+  - `node.rs` - Node management
+  - `wallet.rs` - Wallet operations
+  - `model.rs` - Model management
+  - `stake.rs` - Staking operations
+  - `governance.rs` - Governance and voting
+  - `provider.rs` - Provider management
+  - `inference.rs` - Inference requests
+
+## Note on Current Implementation
+
+This is an initial implementation with stub RPC client functionality. The commands demonstrate the intended UX and output formatting, but make simulated calls rather than actual network requests. In production:
+
+- All commands will connect to actual node RPC endpoints
+- Real transaction signing and broadcasting will occur
+- Actual model downloads and inference will be performed
+- TEE attestation will be verified
+- All on-chain state will be queried from the blockchain
+
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+Licensed under either of:
 
-## Links
+- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](../../LICENSE-MIT))
 
-- Website: [tenzro.com](https://tenzro.com)
-- GitHub: [github.com/tenzro](https://github.com/tenzro)
-- Email: eng@tenzro.com
+at your option.

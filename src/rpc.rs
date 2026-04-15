@@ -50,9 +50,7 @@ impl RpcClient {
                 let port_str = port_str.trim_end_matches('/');
                 if let Ok(port) = port_str.parse::<u16>() {
                     // Map RPC port to API port: 8545→8080, 18545→18080, etc.
-                    let api_port = if port == 8545 {
-                        8080
-                    } else if port == 9944 {
+                    let api_port = if port == 8545 || port == 9944 {
                         8080
                     } else {
                         // For custom ports, try replacing last 3 digits: *545 → *080

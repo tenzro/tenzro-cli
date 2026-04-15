@@ -1,14 +1,3 @@
-# NOTE: This crate is part of the tenzro-network monorepo workspace.
-# It cannot be built standalone — it depends on workspace-local crates
-# (tenzro-types, tenzro-crypto, tenzro-wallet, tenzro-node, tenzro-model, tenzro-zk).
-#
-# To build:
-#   git clone https://github.com/tenzro/tenzro-network
-#   cd tenzro-network
-#   cargo build --release -p tenzro-cli
-#
-# Pre-built binaries are available on the GitHub Releases page.
-
 [package]
 name = "tenzro-cli"
 version.workspace = true
@@ -16,9 +5,6 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Tenzro Network CLI — node operation, wallet management, provider tools"
-homepage = "https://tenzro.com"
-keywords = ["blockchain", "ai", "tee", "settlement", "agent"]
-categories = ["command-line-utilities", "cryptography"]
 
 [[bin]]
 name = "tenzro"
