@@ -195,6 +195,22 @@ tenzro info
 tenzro version --detailed
 ```
 
+### VRF (Verifiable Random Function)
+
+RFC 9381 ECVRF-EDWARDS25519-SHA512-TAI, used for provably-fair NFT reveals,
+lotteries, and randomized trait assignment.
+
+```bash
+# Generate a fresh VRF secret key (hex)
+tenzro vrf keygen
+
+# Generate a VRF proof from a secret key and input
+tenzro vrf prove --secret-key 0x... --alpha 0xdeadbeef
+
+# Verify a VRF proof
+tenzro vrf verify --pubkey 0x... --proof 0x... --alpha 0xdeadbeef
+```
+
 ## Global Options
 
 ```bash

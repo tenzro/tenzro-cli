@@ -461,7 +461,7 @@ impl ModelServeCmd {
         let runtime = ModelRuntime::new();
         let gguf_path = downloader.model_path(&self.model_id);
 
-        match runtime.load_model(&self.model_id, &gguf_path, entry.architecture).await {
+        match runtime.load_model_with_context(&self.model_id, &gguf_path, entry.architecture, Some(entry.context_length)).await {
             Ok(()) => {
                 spinner.finish_and_clear();
                 output::print_success(&format!("Model '{}' loaded successfully!", entry.name));

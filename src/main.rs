@@ -396,7 +396,7 @@ async fn execute_chat(cmd: ChatCmd) -> Result<()> {
             // Auto-load model if downloaded but not yet loaded
             if !runtime.is_loaded(&cmd.model_id) {
                 let spinner = output::create_spinner(&format!("Loading {} into memory...", entry.name));
-                match runtime.load_model(&cmd.model_id, &gguf_path, entry.architecture).await {
+                match runtime.load_model_with_context(&cmd.model_id, &gguf_path, entry.architecture, Some(entry.context_length)).await {
                     Ok(()) => {
                         spinner.finish_and_clear();
                         output::print_success(&format!("Model {} loaded", entry.name));
