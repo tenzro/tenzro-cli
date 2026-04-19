@@ -19,7 +19,7 @@ use commands::{
     ToolCommand, TokenCommand, ContractCommand, BridgeCommand,
     DebridgeCommand, LifiCommand, NftCommand, ComplianceCommand,
     CrosschainCommand, EventsCommand, CryptoCommand, TeeCommand,
-    ZkCommand, CustodyCommand, AppCommand,
+    ZkCommand, VrfCommand, CustodyCommand, AppCommand,
 };
 
 /// Tenzro Network CLI — node operation, wallet management, provider tools
@@ -165,6 +165,10 @@ enum Command {
     #[command(subcommand)]
     Zk(ZkCommand),
 
+    /// VRF operations (prove, verify, keygen) — RFC 9381 ECVRF-EDWARDS25519-SHA512-TAI
+    #[command(subcommand)]
+    Vrf(VrfCommand),
+
     /// Custody & MPC wallet operations (create, export, import, rotate, limits, session)
     #[command(subcommand)]
     Custody(CustodyCommand),
@@ -300,6 +304,7 @@ async fn main() -> Result<()> {
         Command::Crypto(cmd) => cmd.execute().await?,
         Command::Tee(cmd) => cmd.execute().await?,
         Command::Zk(cmd) => cmd.execute().await?,
+        Command::Vrf(cmd) => cmd.execute().await?,
         Command::Custody(cmd) => cmd.execute().await?,
         Command::App(cmd) => cmd.execute().await?,
         Command::Faucet(cmd) => execute_faucet(cmd).await?,

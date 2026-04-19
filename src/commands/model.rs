@@ -33,6 +33,8 @@ pub enum ModelCommand {
     RegisterEndpoint(ModelRegisterEndpointCmd),
     /// Unregister a model endpoint
     UnregisterEndpoint(ModelUnregisterEndpointCmd),
+    /// Reconcile the node's model registry (auto-reload served models, prune stale endpoints)
+    Prune(ModelPruneCmd),
 }
 
 impl ModelCommand {
@@ -50,6 +52,7 @@ impl ModelCommand {
             Self::Progress(cmd) => cmd.execute().await,
             Self::RegisterEndpoint(cmd) => cmd.execute().await,
             Self::UnregisterEndpoint(cmd) => cmd.execute().await,
+            Self::Prune(cmd) => cmd.execute().await,
         }
     }
 }
@@ -969,6 +972,55 @@ impl ModelUnregisterEndpointCmd {
         })).await?;
         spinner.finish_and_clear();
         output::print_success(&format!("Endpoint {} unregistered", self.instance_id));
+        Ok(())
+    }
+}
+
+/// Reconcile the node's model registry — auto-reload served models from disk,
+/// clear stale served flags, and prune orphaned endpoints.
+#[derive(Debug, Parser)]
+pub struct ModelPruneCmd {
+    /// RPC endpoint (default: http://127.0.0.1:8545)
+    #[arg(long, default_value = "http://127.0.0.1:8545")]
+    rpc: String,
+
+    /// Output format (text, json)
+    #[arg(long, default_value = "text")]
+    format: String,
+}
+
+impl ModelPruneCmd {
+    pub async fn execute(&self) -> Result<()> {
+        use crate::rpc::RpcClient;
+
+        output::print_header("Reconciling Model Registry");
+
+        let rpc = RpcClient::new(&self.rpc);
+        let spinner = output::create_spinner("Running reconcile on node...");
+        let result: serde_json::Value = rpc
+            .call("tenzro_pruneModelRegistry", serde_json::Value::Null)
+            .await?;
+        spinner.finish_and_clear();
+
+        if self.format == "json" {
+            output::print_json(&result)?;
+            return Ok(());
+        }
+
+        let reloaded = result.get("reloaded").and_then(|v| v.as_u64()).unwrap_or(0);
+        let cleared_models = result
+            .get("cleared_models")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let cleared_services = result
+            .get("cleared_services")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+
+        output::print_success(&format!(
+            "Reconcile complete: {} auto-reloaded, {} served flag(s) cleared, {} endpoint(s) pruned",
+            reloaded, cleared_models, cleared_services
+        ));
         Ok(())
     }
 }

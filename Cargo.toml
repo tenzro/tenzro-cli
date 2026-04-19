@@ -39,6 +39,7 @@ chrono = "0.4"
 ark-bn254 = "0.4"
 ark-ec = "0.4"
 ark-serialize = "0.4"
+rand = { workspace = true }
 
 [features]
 default = []

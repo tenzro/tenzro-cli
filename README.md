@@ -4,13 +4,19 @@ The official command-line interface for operating Tenzro Network nodes, managing
 
 ## Features
 
-- **Node Management**: Start, stop, and monitor Tenzro Network nodes
-- **Wallet Operations**: Create MPC wallets, check balances, send transactions
-- **Model Management**: List, download, and serve AI models
+- **Network Onboarding**: One-click participation via `join` command
+- **Node Management**: Monitor node status
+- **Wallet Operations**: Create MPC wallets, check balances, send transactions (real reqwest RPC client)
+- **Model Management**: List, download, serve AI models (local + remote RPC)
 - **Staking**: Stake TNZO tokens as validator or provider
 - **Governance**: Participate in on-chain governance and voting
 - **Provider Tools**: Register and manage inference/TEE providers
-- **Inference Requests**: Submit AI inference requests to the network
+- **Identity Management**: Register human/machine DIDs via TDIP
+- **Payments**: MPP/x402 payment protocol support
+- **Canton Integration**: DAML contract interaction
+- **Agent Operations**: Register agents, spawn from templates, manage swarms
+- **VRF Operations**: RFC 9381 ECVRF-EDWARDS25519-SHA512-TAI prove/verify/keygen
+- **Chat Interface**: Interactive REPL with local llama.cpp + RPC fallback
 
 ## Installation
 
@@ -25,11 +31,8 @@ cargo run -p tenzro-cli -- --help
 ## Quick Start
 
 ```bash
-# Start a full node
-tenzro node start --role user
-
-# Create a new wallet
-tenzro wallet create
+# One-click network participation (provisions identity, wallet, hardware profile)
+tenzro join
 
 # Check your balance
 tenzro wallet balance
@@ -37,26 +40,26 @@ tenzro wallet balance
 # List available models
 tenzro model list
 
-# Submit an inference request
-tenzro inference request gemma4-9b "What is Tenzro Network?"
+# Interactive chat with session history
+tenzro chat
 ```
 
-## Commands
+## Commands (39 top-level)
+
+All commands use real JSON-RPC calls via reqwest. No artificial delays.
+
+### Network Onboarding
+
+```bash
+# One-click join: provisions identity, wallet, hardware profile
+tenzro join
+```
 
 ### Node Management
 
 ```bash
-# Start a node with specific role
-tenzro node start --role validator
-tenzro node start --role model-provider
-tenzro node start --role tee-provider
-tenzro node start --role user
-
 # Check node status
 tenzro node status
-
-# Stop the node
-tenzro node stop
 ```
 
 ### Wallet Operations
@@ -65,22 +68,16 @@ tenzro node stop
 # Create a new MPC wallet (2-of-3 threshold by default)
 tenzro wallet create
 
-# Create with custom threshold
-tenzro wallet create --threshold 3 --total-shares 5
-
-# Import existing wallet
+# Import existing wallet (calls tenzro_importIdentity RPC)
 tenzro wallet import <seed-phrase|private-key>
 
-# Check balance
+# Check balance (calls eth_getBalance)
 tenzro wallet balance --address <address>
 
-# Send tokens
+# Send tokens (queries nonce + chain ID, builds tx, calls eth_sendRawTransaction)
 tenzro wallet send <to-address> <amount> --asset TNZO
 
-# Send stablecoins
-tenzro wallet send <to-address> 100 --asset USDC
-
-# List all wallets
+# List all wallets (calls tenzro_listAccounts)
 tenzro wallet list
 ```
 
@@ -97,95 +94,480 @@ tenzro model list --modality image
 # Show model details
 tenzro model info gemma4-9b --providers
 
-# Download a model
+# Download a model (local HuggingFace + remote RPC)
 tenzro model download gemma4-9b
 
-# Start serving a model
+# Start serving a model (local llama.cpp + remote tenzro_serveModel RPC)
 tenzro model serve gemma4-9b --gpus 0,1 --port 8080
 
-# Stop serving
+# Stop serving (local + remote tenzro_stopModel RPC)
 tenzro model stop gemma4-9b
+
+# List model endpoints (tenzro_listModelEndpoints)
+tenzro model endpoints
+
+# Get specific endpoint (tenzro_getModelEndpoint)
+tenzro model endpoint <model_id>
+
+# Delete model
+tenzro model delete gemma4-9b
+```
+
+### Chat Interface
+
+```bash
+# Interactive REPL with session history
+tenzro chat
+
+# Local llama.cpp inference with RPC fallback (tenzro_chat)
+# Commands: /history, /load <session_id>, /exit
 ```
 
 ### Staking
 
 ```bash
-# Stake TNZO tokens
+# Stake TNZO tokens (tenzro_stake)
 tenzro stake deposit 10000
 
 # Stake as specific provider type
 tenzro stake deposit 10000 --provider-type validator
 
-# Stake with lock period for higher APY
-tenzro stake deposit 10000 --lock-days 180
-
-# Withdraw staked tokens
+# Withdraw staked tokens (tenzro_unstake)
 tenzro stake withdraw 5000
 
-# View staking information
-tenzro stake info --detailed
+# View staking information (queries tenzro_getVotingPower)
+tenzro stake info
 ```
 
 ### Governance
 
 ```bash
 # List active proposals
-tenzro governance list --active
+tenzro governance list --active --detailed
 
-# View detailed proposal info
-tenzro governance list --detailed
-
-# Create a new proposal
+# Create a new proposal (tenzro_createProposal)
 tenzro governance propose \
   "Increase validator rewards" \
   "This proposal increases validator rewards by 10%" \
   --type parameter \
   --duration-days 14
 
-# Vote on a proposal
+# Vote on a proposal (queries tenzro_getVotingPower + calls tenzro_vote)
 tenzro governance vote prop_001 yes
-tenzro governance vote prop_002 no --reason "Insufficient justification"
 ```
 
 ### Provider Management
 
 ```bash
-# Register as inference provider
+# Register as inference provider (tenzro_registerProvider)
 tenzro provider register --type inference --stake 10000
 
-# Register as TEE provider
-tenzro provider register --type tee --stake 15000
-
-# Check provider status
+# Check provider status (tenzro_providerStats)
 tenzro provider status --detailed
 
 # List models you're serving
 tenzro provider models
+
+# Set pricing
+tenzro provider pricing set <model_id> <price>
+tenzro provider pricing show
+
+# List all providers
+tenzro provider list
 ```
 
-### Inference Requests
+### Schedule Management
 
 ```bash
-# Submit text inference
-tenzro inference request gemma4-9b "Explain quantum computing"
+# Set provider availability schedule
+tenzro schedule set --days mon,tue,wed --hours 9-17
 
-# Image generation
-tenzro inference request stable-diffusion-xl "A sunset over mountains"
+# Show current schedule
+tenzro schedule show
 
-# With parameters (price in TNZO)
-tenzro inference request gemma4-9b "Write a poem" \
-  --temperature 0.8 \
-  --max-tokens 500 \
-  --max-price 1.0
-
-# Require TEE attestation
-tenzro inference request gpt-4o "Sensitive query" --require-tee
-
-# Save output to file
-tenzro inference request gemma4-9b "Generate code" --output-file result.txt
+# Enable/disable schedule
+tenzro schedule enable
+tenzro schedule disable
 ```
 
-### Network Information
+### Identity Management
+
+```bash
+# Register human identity (tenzro_registerIdentity)
+tenzro identity register --type human --name "Alice"
+
+# Register machine identity
+tenzro identity register --type machine --controller <did>
+
+# Resolve DID
+tenzro identity resolve <did>
+
+# List identities
+tenzro identity list
+
+# Get DID document
+tenzro identity document <did>
+
+# Add credential
+tenzro identity add-credential <did> <credential>
+
+# Add service
+tenzro identity add-service <did> <service>
+```
+
+### Payment Operations
+
+```bash
+# Create payment challenge (tenzro_createPaymentChallenge)
+tenzro payment challenge --protocol mpp --amount 100
+
+# Pay resource (dispatches to tenzro_payMpp/tenzro_payX402)
+tenzro payment pay --credential <credential>
+
+# List payment sessions
+tenzro payment sessions
+
+# Get receipt
+tenzro payment receipt <session_id>
+
+# Get payment info
+tenzro payment info
+```
+
+### Agent Operations
+
+```bash
+# Register agent
+tenzro agent register --name "MyAgent" --capabilities inference,trading
+
+# List agents
+tenzro agent list
+
+# Send agent message (tenzro_sendAgentMessage)
+tenzro agent send <agent_id> <message>
+
+# Spawn new agent
+tenzro agent spawn --parent <parent_id>
+
+# Run task
+tenzro agent run-task <agent_id> <task>
+
+# Create swarm
+tenzro agent create-swarm --agents <agent_ids>
+
+# Get swarm
+tenzro agent get-swarm <swarm_id>
+
+# Terminate swarm
+tenzro agent terminate-swarm <swarm_id>
+
+# List templates (tenzro_listAgentTemplates)
+tenzro agent list-templates
+
+# Get template (tenzro_getAgentTemplate)
+tenzro agent get-template <template_id>
+
+# Spawn from template
+tenzro agent spawn-template <template_id>
+
+# Run template
+tenzro agent run-template <template_id> <params>
+```
+
+### Canton Integration
+
+```bash
+# List Canton domains (tenzro_listCantonDomains)
+tenzro canton domains
+
+# List DAML contracts (tenzro_listDamlContracts)
+tenzro canton contracts
+
+# Submit DAML command (tenzro_submitDamlCommand)
+tenzro canton submit <command>
+```
+
+### Escrow Operations
+
+```bash
+# Create escrow
+tenzro escrow create --amount <amount> --recipient <address>
+
+# Release escrow
+tenzro escrow release <escrow_id>
+
+# Open payment channel
+tenzro escrow open-channel --counterparty <address> --amount <amount>
+
+# Close channel
+tenzro escrow close-channel <channel_id>
+
+# Delegate escrow
+tenzro escrow delegate <escrow_id> <delegate>
+
+# Settle payment (tenzro_settle)
+tenzro escrow settle <settlement_id>
+
+# Get settlement (tenzro_getSettlement)
+tenzro escrow get-settlement <settlement_id>
+```
+
+### ZK Ceremony
+
+```bash
+# Initialize trusted setup ceremony
+tenzro ceremony init
+
+# Contribute to ceremony
+tenzro ceremony contribute
+
+# Verify contribution
+tenzro ceremony verify
+
+# Finalize ceremony
+tenzro ceremony finalize
+
+# Check ceremony status
+tenzro ceremony status
+```
+
+### Task Marketplace
+
+```bash
+# List tasks
+tenzro task list
+
+# Post task
+tenzro task post --description <desc> --reward <amount>
+
+# Get task
+tenzro task get <task_id>
+
+# Cancel task
+tenzro task cancel <task_id>
+
+# Quote task (tenzro_quoteTask)
+tenzro task quote <task_id>
+
+# Assign task (tenzro_assignTask)
+tenzro task assign <task_id> <agent_id>
+
+# Complete task (tenzro_completeTask)
+tenzro task complete <task_id>
+```
+
+### Agent Marketplace
+
+```bash
+# List agent templates (tenzro_listAgentTemplates)
+tenzro marketplace list
+
+# Get template (tenzro_getAgentTemplate)
+tenzro marketplace get <template_id>
+
+# Register template (tenzro_registerAgentTemplate)
+tenzro marketplace register <template>
+```
+
+### Skill Management
+
+```bash
+# List skills (tenzro_listSkills)
+tenzro skill list
+
+# Register skill (tenzro_registerSkill)
+tenzro skill register <skill>
+
+# Search skills (tenzro_searchSkills)
+tenzro skill search <query>
+
+# Use skill (tenzro_useSkill)
+tenzro skill use <skill_id> <params>
+
+# Get skill (tenzro_getSkill)
+tenzro skill get <skill_id>
+```
+
+### Tool Management
+
+```bash
+# List tools (tenzro_listTools)
+tenzro tool list
+
+# Register tool (tenzro_registerTool)
+tenzro tool register <tool>
+
+# Search tools (tenzro_searchTools)
+tenzro tool search <query>
+
+# Use tool (tenzro_useTool)
+tenzro tool use <tool_id> <params>
+
+# Get tool (tenzro_getTool)
+tenzro tool get <tool_id>
+```
+
+### Token Operations
+
+```bash
+# Create token (tenzro_createToken)
+tenzro token create --name "MyToken" --symbol "MTK" --decimals 18 --supply 1000000
+
+# Get token info (tenzro_getToken)
+tenzro token info --address <address>
+
+# List tokens (tenzro_listTokens)
+tenzro token list
+
+# Get balance (tenzro_getTokenBalance)
+tenzro token balance <token_id> <address>
+
+# Wrap TNZO (tenzro_wrapTnzo)
+tenzro token wrap --amount <amount> --to-vm evm
+
+# Transfer (tenzro_crossVmTransfer)
+tenzro token transfer --token <token_id> --to <address> --amount <amount>
+```
+
+### Contract Operations
+
+```bash
+# Deploy contract (tenzro_deployContract)
+tenzro contract deploy --bytecode <bytecode> --vm evm
+```
+
+### Bridge Operations
+
+```bash
+# Bridge tokens
+tenzro bridge transfer --from-chain <chain> --to-chain <chain> --amount <amount>
+```
+
+### DeBridge Operations
+
+```bash
+# DeBridge cross-chain operations
+tenzro debridge quote --from-chain <chain> --to-chain <chain> --amount <amount>
+tenzro debridge transfer <params>
+```
+
+### LI.FI Operations
+
+```bash
+# LI.FI bridge aggregation
+tenzro lifi quote --from-chain <chain> --to-chain <chain> --amount <amount>
+tenzro lifi transfer <params>
+```
+
+### NFT Operations
+
+```bash
+# NFT operations
+tenzro nft mint --collection <id> --to <address>
+tenzro nft transfer --token-id <id> --to <address>
+```
+
+### Compliance Operations
+
+```bash
+# Compliance operations
+tenzro compliance check --address <address>
+```
+
+### Cross-Chain Operations
+
+```bash
+# Cross-chain operations
+tenzro crosschain transfer --from <chain> --to <chain> --amount <amount>
+```
+
+### Event Monitoring
+
+```bash
+# Event monitoring
+tenzro events subscribe --topics <topics>
+tenzro events list
+```
+
+### Crypto Operations
+
+```bash
+# Crypto operations
+tenzro crypto keygen --type ed25519
+tenzro crypto sign --message <message> --key <key>
+tenzro crypto verify --message <message> --signature <sig> --pubkey <key>
+```
+
+### TEE Operations
+
+```bash
+# TEE operations
+tenzro tee attest
+tenzro tee verify --attestation <attestation>
+```
+
+### ZK Operations
+
+```bash
+# ZK operations
+tenzro zk prove --circuit <circuit> --inputs <inputs>
+tenzro zk verify --proof <proof>
+```
+
+### VRF Operations
+
+```bash
+# RFC 9381 ECVRF-EDWARDS25519-SHA512-TAI
+# 80-byte proofs, 64-byte outputs, Ed25519-key-compatible
+
+# Generate a fresh VRF secret key (hex)
+tenzro vrf keygen
+
+# Generate a VRF proof from a secret key and input (tenzro_generateVrfProof)
+tenzro vrf prove --secret-key 0x... --alpha 0xdeadbeef
+
+# Verify a VRF proof (tenzro_verifyVrfProof)
+tenzro vrf verify --pubkey 0x... --proof 0x... --alpha 0xdeadbeef
+```
+
+### Custody Operations
+
+```bash
+# Custody operations
+tenzro custody create --type multisig
+tenzro custody approve --tx-id <id>
+```
+
+### App Operations
+
+```bash
+# App operations
+tenzro app install <app>
+tenzro app list
+```
+
+### Hardware Detection
+
+```bash
+# Detect hardware capabilities
+tenzro hardware
+```
+
+### Username Management
+
+```bash
+# Set username
+tenzro set-username <username>
+```
+
+### Faucet
+
+```bash
+# Request testnet TNZO (tenzro_faucet RPC)
+tenzro faucet
+```
+
+### Info & Version
 
 ```bash
 # Show network stats
@@ -193,22 +575,6 @@ tenzro info
 
 # Show version
 tenzro version --detailed
-```
-
-### VRF (Verifiable Random Function)
-
-RFC 9381 ECVRF-EDWARDS25519-SHA512-TAI, used for provably-fair NFT reveals,
-lotteries, and randomized trait assignment.
-
-```bash
-# Generate a fresh VRF secret key (hex)
-tenzro vrf keygen
-
-# Generate a VRF proof from a secret key and input
-tenzro vrf prove --secret-key 0x... --alpha 0xdeadbeef
-
-# Verify a VRF proof
-tenzro vrf verify --pubkey 0x... --proof 0x... --alpha 0xdeadbeef
 ```
 
 ## Global Options
@@ -248,14 +614,14 @@ The CLI stores configuration and wallet data in:
 ### Running a Validator Node
 
 ```bash
-# 1. Create wallet for validator
-tenzro wallet create --name validator
+# 1. Join network (provisions identity + wallet)
+tenzro join
 
 # 2. Stake tokens
 tenzro stake deposit 100000 --provider-type validator
 
-# 3. Start validator node
-tenzro node start --role validator --data-dir ~/.tenzro/validator
+# 3. Start validator node (via tenzro-node binary)
+tenzro-node --role validator --data-dir ~/.tenzro/validator
 ```
 
 ### Becoming an Inference Provider
@@ -266,11 +632,9 @@ tenzro provider register --type inference --stake 10000
 
 # 2. Download models
 tenzro model download gemma4-9b
-tenzro model download stable-diffusion-xl
 
-# 3. Start serving models
+# 3. Start serving models (local or remote)
 tenzro model serve gemma4-9b --gpus 0
-tenzro model serve stable-diffusion-xl --gpus 1
 
 # 4. Monitor provider status
 tenzro provider status --detailed
@@ -316,30 +680,12 @@ The CLI is organized into several modules:
 
 - `main.rs` - Entry point and command routing
 - `output.rs` - Output formatting utilities (tables, progress bars, colors)
-- `commands/` - Command implementations
-  - `node.rs` - Node management
-  - `wallet.rs` - Wallet operations
-  - `model.rs` - Model management
-  - `stake.rs` - Staking operations
-  - `governance.rs` - Governance and voting
-  - `provider.rs` - Provider management
-  - `inference.rs` - Inference requests
+- `rpc.rs` - Real JSON-RPC client (reqwest)
+- `config.rs` - Configuration management
+- `commands/` - Command implementations (39 modules)
 
-## Note on Current Implementation
-
-This is an initial implementation with stub RPC client functionality. The commands demonstrate the intended UX and output formatting, but make simulated calls rather than actual network requests. In production:
-
-- All commands will connect to actual node RPC endpoints
-- Real transaction signing and broadcasting will occur
-- Actual model downloads and inference will be performed
-- TEE attestation will be verified
-- All on-chain state will be queried from the blockchain
+All commands use real JSON-RPC calls to tenzro-node RPC endpoints. No simulated calls, no artificial delays.
 
 ## License
 
-Licensed under either of:
-
-- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE))
-- MIT license ([LICENSE-MIT](../../LICENSE-MIT))
-
-at your option.
+Licensed under Apache License 2.0.

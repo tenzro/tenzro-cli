@@ -35,6 +35,7 @@ pub mod events;
 pub mod crypto;
 pub mod tee;
 pub mod zk;
+pub mod vrf;
 pub mod custody;
 pub mod app;
 
@@ -71,5 +72,6 @@ pub use events::EventsCommand;
 pub use crypto::CryptoCommand;
 pub use tee::TeeCommand;
 pub use zk::ZkCommand;
+pub use vrf::VrfCommand;
 pub use custody::CustodyCommand;
 pub use app::AppCommand;

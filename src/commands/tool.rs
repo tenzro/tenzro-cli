@@ -21,6 +21,8 @@ pub enum ToolCommand {
     Usage(ToolUsageCmd),
     /// Update an existing tool
     Update(UpdateToolCmd),
+    /// Reconcile the tool registry — purge Inactive/Deprecated tools
+    Prune(PruneToolsCmd),
 }
 
 impl ToolCommand {
@@ -33,7 +35,57 @@ impl ToolCommand {
             Self::Get(cmd) => cmd.execute().await,
             Self::Usage(cmd) => cmd.execute().await,
             Self::Update(cmd) => cmd.execute().await,
+            Self::Prune(cmd) => cmd.execute().await,
         }
+    }
+}
+
+/// Reconcile the node's tool registry — purge Inactive/Deprecated tools
+/// older than `purge_after_secs` (default 30 days). Active tools are
+/// always retained.
+#[derive(Debug, Parser)]
+pub struct PruneToolsCmd {
+    /// Purge inactive/deprecated tools older than this many seconds (default: 30 days)
+    #[arg(long)]
+    purge_after_secs: Option<u64>,
+
+    /// RPC endpoint (default: http://127.0.0.1:8545)
+    #[arg(long, default_value = "http://127.0.0.1:8545")]
+    rpc: String,
+
+    /// Output format (text, json)
+    #[arg(long, default_value = "text")]
+    format: String,
+}
+
+impl PruneToolsCmd {
+    pub async fn execute(self) -> Result<()> {
+        use crate::rpc::RpcClient;
+
+        output::print_header("Reconciling Tool Registry");
+
+        let rpc = RpcClient::new(&self.rpc);
+        let spinner = output::create_spinner("Running tool reconcile on node...");
+        let params = match self.purge_after_secs {
+            Some(s) => serde_json::json!({ "purge_after_secs": s }),
+            None => serde_json::Value::Null,
+        };
+        let result: serde_json::Value = rpc
+            .call("tenzro_pruneToolRegistry", params)
+            .await?;
+        spinner.finish_and_clear();
+
+        if self.format == "json" {
+            output::print_json(&result)?;
+            return Ok(());
+        }
+
+        let purged = result.get("purged").and_then(|v| v.as_u64()).unwrap_or(0);
+        output::print_success(&format!(
+            "Tool reconcile complete: {} stale tool(s) purged",
+            purged
+        ));
+        Ok(())
     }
 }
 

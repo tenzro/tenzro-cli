@@ -21,6 +21,8 @@ pub enum SkillCommand {
     Usage(SkillUsageCmd),
     /// Update an existing skill
     Update(UpdateSkillCmd),
+    /// Reconcile the skill registry — purge Inactive/Deprecated skills
+    Prune(PruneSkillsCmd),
 }
 
 impl SkillCommand {
@@ -33,7 +35,57 @@ impl SkillCommand {
             Self::Get(cmd) => cmd.execute().await,
             Self::Usage(cmd) => cmd.execute().await,
             Self::Update(cmd) => cmd.execute().await,
+            Self::Prune(cmd) => cmd.execute().await,
         }
+    }
+}
+
+/// Reconcile the node's skill registry — purge Inactive/Deprecated skills
+/// older than `purge_after_secs` (default 30 days). Active skills are
+/// always retained.
+#[derive(Debug, Parser)]
+pub struct PruneSkillsCmd {
+    /// Purge inactive/deprecated skills older than this many seconds (default: 30 days)
+    #[arg(long)]
+    purge_after_secs: Option<u64>,
+
+    /// RPC endpoint (default: http://127.0.0.1:8545)
+    #[arg(long, default_value = "http://127.0.0.1:8545")]
+    rpc: String,
+
+    /// Output format (text, json)
+    #[arg(long, default_value = "text")]
+    format: String,
+}
+
+impl PruneSkillsCmd {
+    pub async fn execute(self) -> Result<()> {
+        use crate::rpc::RpcClient;
+
+        output::print_header("Reconciling Skill Registry");
+
+        let rpc = RpcClient::new(&self.rpc);
+        let spinner = output::create_spinner("Running skill reconcile on node...");
+        let params = match self.purge_after_secs {
+            Some(s) => serde_json::json!({ "purge_after_secs": s }),
+            None => serde_json::Value::Null,
+        };
+        let result: serde_json::Value = rpc
+            .call("tenzro_pruneSkillRegistry", params)
+            .await?;
+        spinner.finish_and_clear();
+
+        if self.format == "json" {
+            output::print_json(&result)?;
+            return Ok(());
+        }
+
+        let purged = result.get("purged").and_then(|v| v.as_u64()).unwrap_or(0);
+        output::print_success(&format!(
+            "Skill reconcile complete: {} stale skill(s) purged",
+            purged
+        ));
+        Ok(())
     }
 }
 

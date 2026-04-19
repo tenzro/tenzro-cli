@@ -45,6 +45,8 @@ pub enum AgentCommand {
     SpawnWithSkill(AgentSpawnWithSkillCmd),
     /// Pay for inference on behalf of an agent
     PayForInference(AgentPayForInferenceCmd),
+    /// Reconcile the agent registry — auto-suspend idle agents (1h TTL)
+    Prune(AgentPruneCmd),
 }
 
 impl AgentCommand {
@@ -68,7 +70,49 @@ impl AgentCommand {
             Self::SpawnFromTemplate(cmd) => cmd.execute().await,
             Self::SpawnWithSkill(cmd) => cmd.execute().await,
             Self::PayForInference(cmd) => cmd.execute().await,
+            Self::Prune(cmd) => cmd.execute().await,
         }
+    }
+}
+
+/// Reconcile the node's agent registry — auto-suspend idle Active agents
+/// (1h TTL) and persist the suspension. Terminated agents are preserved
+/// indefinitely for audit.
+#[derive(Debug, Parser)]
+pub struct AgentPruneCmd {
+    /// RPC endpoint (default: http://127.0.0.1:8545)
+    #[arg(long, default_value = "http://127.0.0.1:8545")]
+    rpc: String,
+
+    /// Output format (text, json)
+    #[arg(long, default_value = "text")]
+    format: String,
+}
+
+impl AgentPruneCmd {
+    pub async fn execute(&self) -> Result<()> {
+        use crate::rpc::RpcClient;
+
+        output::print_header("Reconciling Agent Registry");
+
+        let rpc = RpcClient::new(&self.rpc);
+        let spinner = output::create_spinner("Running agent reconcile on node...");
+        let result: serde_json::Value = rpc
+            .call("tenzro_pruneAgentRegistry", serde_json::Value::Null)
+            .await?;
+        spinner.finish_and_clear();
+
+        if self.format == "json" {
+            output::print_json(&result)?;
+            return Ok(());
+        }
+
+        let suspended = result.get("suspended").and_then(|v| v.as_u64()).unwrap_or(0);
+        output::print_success(&format!(
+            "Agent reconcile complete: {} agent(s) auto-suspended",
+            suspended
+        ));
+        Ok(())
     }
 }
 
