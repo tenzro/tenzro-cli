@@ -55,7 +55,7 @@ pub struct BridgeQuoteCmd {
     /// Amount to bridge
     #[arg(long)]
     amount: String,
-    /// Bridge protocol to use (optional: "layerzero", "ccip", "debridge", "lifi")
+    /// Bridge protocol to use (optional: "layerzero", "ccip", "debridge", "lifi", "wormhole")
     #[arg(long)]
     protocol: Option<String>,
     /// RPC endpoint
@@ -125,7 +125,7 @@ pub struct BridgeExecuteCmd {
     /// Recipient address (hex)
     #[arg(long)]
     recipient: String,
-    /// Bridge protocol to use (optional: "layerzero", "ccip", "debridge", "lifi")
+    /// Bridge protocol to use (optional: "layerzero", "ccip", "debridge", "lifi", "wormhole")
     #[arg(long)]
     protocol: Option<String>,
     /// RPC endpoint

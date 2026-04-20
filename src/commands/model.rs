@@ -233,6 +233,36 @@ impl ModelInfoCmd {
                 output::print_field("Size", &format_bytes(m.size_bytes));
                 output::print_field("Min RAM", &format!("{} GB", m.min_ram_gb));
                 output::print_field("License", &m.license);
+
+                // Mixture-of-Experts section — detected via architecture name
+                // (Qwen3Moe, Qwen35Moe, Gemma4Moe etc.) and encoded total/active
+                // parameter counts in the parameters / description strings.
+                let arch_str = m.architecture.to_string();
+                if arch_str.contains("moe") {
+                    println!();
+                    output::print_field("Mixture-of-Experts", "Yes");
+                    // The `parameters` string encodes total/active counts, e.g.
+                    // "30B (MoE, 32B active)" or "1T (MoE, 32B active)".
+                    if let Some(open) = m.parameters.find('(') {
+                        let total = m.parameters[..open].trim();
+                        output::print_field("Total Parameters", total);
+                        if let Some(close) = m.parameters[open..].find(')') {
+                            let inside = &m.parameters[open + 1..open + close];
+                            // Extract the "X active" token if present.
+                            for part in inside.split(',') {
+                                let p = part.trim();
+                                if let Some(stripped) = p.strip_suffix(" active") {
+                                    output::print_field("Active Parameters", stripped);
+                                }
+                            }
+                        }
+                    }
+                    output::print_field(
+                        "Routing",
+                        "Sparse expert routing (llama.cpp auto-detects expert count from GGUF)",
+                    );
+                }
+
                 println!();
                 output::print_field("HF Repo", &m.hf_repo);
                 output::print_field("Description", &m.description);

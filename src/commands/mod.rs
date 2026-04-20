@@ -38,6 +38,11 @@ pub mod zk;
 pub mod vrf;
 pub mod custody;
 pub mod app;
+pub mod cortex;
+pub mod ap2;
+pub mod erc8004;
+pub mod wormhole;
+pub mod cct;
 
 // Re-export command types
 pub use node::NodeCommand;
@@ -75,3 +80,8 @@ pub use zk::ZkCommand;
 pub use vrf::VrfCommand;
 pub use custody::CustodyCommand;
 pub use app::AppCommand;
+pub use cortex::CortexCommand;
+pub use ap2::Ap2Command;
+pub use erc8004::Erc8004Command;
+pub use wormhole::WormholeCommand;
+pub use cct::CctCommand;

@@ -20,6 +20,7 @@ use commands::{
     DebridgeCommand, LifiCommand, NftCommand, ComplianceCommand,
     CrosschainCommand, EventsCommand, CryptoCommand, TeeCommand,
     ZkCommand, VrfCommand, CustodyCommand, AppCommand,
+    CortexCommand, Ap2Command, Erc8004Command, WormholeCommand, CctCommand,
 };
 
 /// Tenzro Network CLI — node operation, wallet management, provider tools
@@ -169,6 +170,10 @@ enum Command {
     #[command(subcommand)]
     Vrf(VrfCommand),
 
+    /// Cortex recurrent-depth reasoning (register, list, reason) — priced, signed, settled
+    #[command(subcommand)]
+    Cortex(CortexCommand),
+
     /// Custody & MPC wallet operations (create, export, import, rotate, limits, session)
     #[command(subcommand)]
     Custody(CustodyCommand),
@@ -176,6 +181,22 @@ enum Command {
     /// Application management (register, users, funding, sponsoring, stats)
     #[command(subcommand)]
     App(AppCommand),
+
+    /// AP2 (Agent Payments Protocol): mandate verify, validate, info
+    #[command(subcommand)]
+    Ap2(Ap2Command),
+
+    /// ERC-8004 Trustless Agents Registry: derive-id, encode-register, feedback, validation
+    #[command(subcommand)]
+    Erc8004(Erc8004Command),
+
+    /// Wormhole cross-chain: chain-id, parse-vaa, bridge
+    #[command(subcommand)]
+    Wormhole(WormholeCommand),
+
+    /// TNZO CCT (Chainlink Cross-Chain Token) pool inspection: list-pools, get-pool
+    #[command(subcommand)]
+    Cct(CctCommand),
 
     /// Interactive chat with AI models
     Chat(ChatCmd),
@@ -305,8 +326,13 @@ async fn main() -> Result<()> {
         Command::Tee(cmd) => cmd.execute().await?,
         Command::Zk(cmd) => cmd.execute().await?,
         Command::Vrf(cmd) => cmd.execute().await?,
+        Command::Cortex(cmd) => cmd.execute().await?,
         Command::Custody(cmd) => cmd.execute().await?,
         Command::App(cmd) => cmd.execute().await?,
+        Command::Ap2(cmd) => cmd.execute().await?,
+        Command::Erc8004(cmd) => cmd.execute().await?,
+        Command::Wormhole(cmd) => cmd.execute().await?,
+        Command::Cct(cmd) => cmd.execute().await?,
         Command::Faucet(cmd) => execute_faucet(cmd).await?,
         Command::Chat(cmd) => execute_chat(cmd).await?,
         Command::Hardware(cmd) => commands::hardware::execute(&cmd.format).await?,
