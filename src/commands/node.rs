@@ -163,12 +163,12 @@ impl NodeStatusCmd {
         let peer_count: String = rpc.call("net_peerCount", serde_json::json!([])).await?;
         let listening: bool = rpc.call("net_listening", serde_json::json!([])).await.unwrap_or(false);
         // Try derived API URL first, then fallback to default port 8080
-        let api_status: serde_json::Value = match rpc.api_get("/api/status").await {
+        let api_status: serde_json::Value = match rpc.api_get("/status").await {
             Ok(v) => v,
             Err(_) => {
                 // Fallback: try default web API port
                 let fallback = RpcClient::new("http://127.0.0.1:8545");
-                fallback.api_get("/api/status").await.unwrap_or_else(|_| serde_json::json!({}))
+                fallback.api_get("/status").await.unwrap_or_else(|_| serde_json::json!({}))
             }
         };
 

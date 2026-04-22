@@ -23,6 +23,9 @@ pub enum MarketplaceCommand {
     Rate(RateTemplateCmd),
     /// Update an existing agent template
     Update(UpdateTemplateCmd),
+    /// Run (invoke) a spawned agent template end-to-end
+    /// (charges the payer wallet for paid templates: network commission -> treasury, remainder -> creator)
+    Run(RunTemplateCmd),
 }
 
 impl MarketplaceCommand {
@@ -36,6 +39,7 @@ impl MarketplaceCommand {
             Self::Stats(cmd) => cmd.execute().await,
             Self::Rate(cmd) => cmd.execute().await,
             Self::Update(cmd) => cmd.execute().await,
+            Self::Run(cmd) => cmd.execute().await,
         }
     }
 }
@@ -172,6 +176,23 @@ pub struct RegisterTemplateCmd {
     /// Comma-separated tags
     #[arg(long)]
     tags: Option<String>,
+    /// Optional DID binding for creator attribution (e.g. did:tenzro:human:...).
+    /// The DID is bound at registration time and cannot be changed later.
+    #[arg(long)]
+    creator_did: Option<String>,
+    /// Hex-encoded creator payout wallet address (0x...).
+    /// MANDATORY for any non-free pricing — all creator payouts are routed here.
+    #[arg(long)]
+    creator_wallet: Option<String>,
+    /// Pricing model in compact string form. One of:
+    ///   "free",
+    ///   "per_execution:<u128>",
+    ///   "per_token:<u128>",
+    ///   "subscription:<u128>",
+    ///   "revenue_share:<bps>"
+    /// (base units = 10^-18 TNZO). Defaults to "free".
+    #[arg(long, default_value = "free")]
+    pricing: String,
     /// RPC endpoint
     #[arg(long, default_value = "http://127.0.0.1:8545")]
     rpc: String,
@@ -191,13 +212,20 @@ impl RegisterTemplateCmd {
             .filter(|s| !s.is_empty())
             .collect();
 
-        let params = serde_json::json!({
+        let mut params = serde_json::json!({
             "name": self.name,
             "description": self.description,
             "template_type": self.template_type,
             "system_prompt": self.system_prompt,
             "tags": tags,
+            "pricing": self.pricing,
         });
+        if let Some(ref did) = self.creator_did {
+            params["creator_did"] = serde_json::json!(did);
+        }
+        if let Some(ref wallet) = self.creator_wallet {
+            params["creator_wallet"] = serde_json::json!(wallet);
+        }
 
         let result: Result<serde_json::Value> = rpc.call("tenzro_registerAgentTemplate", serde_json::json!([params])).await;
         spinner.finish_and_clear();
@@ -211,6 +239,15 @@ impl RegisterTemplateCmd {
                 }
                 if let Some(status) = tmpl["status"].as_str() {
                     output::print_field("Status", status);
+                }
+                if let Some(did) = tmpl["creator_did"].as_str() {
+                    output::print_field("Creator DID", did);
+                }
+                if let Some(w) = tmpl["creator_wallet"].as_str() {
+                    output::print_field("Creator Wallet", w);
+                }
+                if let Some(p) = tmpl.get("pricing") {
+                    output::print_field("Pricing", &p.to_string());
                 }
             }
             Err(e) => output::print_error(&format!("Failed to register template: {}", e)),
@@ -364,6 +401,111 @@ impl UpdateTemplateCmd {
         let _result: serde_json::Value = rpc.call("tenzro_updateAgentTemplate", serde_json::json!([params])).await?;
         spinner.finish_and_clear();
         output::print_success("Template updated!");
+        Ok(())
+    }
+}
+
+/// Invoke (run) a spawned agent template end-to-end.
+///
+/// For paid templates the payer wallet is charged:
+///   - `AGENT_MARKETPLACE_COMMISSION_BPS` (5%) flows to the network treasury
+///   - the remainder is paid to the template's `creator_wallet`
+///
+/// Successful non-dry-run invocations are metered (invocation_count +
+/// total_revenue) and persisted to CF_AGENT_TEMPLATES. `dry_run=true`
+/// simulates execution without dispatching real transactions or charging
+/// any fees.
+#[derive(Debug, Parser)]
+pub struct RunTemplateCmd {
+    /// UUID of the spawned agent to run (must have been created via `agent spawn-template` first)
+    #[arg(long)]
+    agent_id: String,
+    /// Hex-encoded payer wallet address (0x...). REQUIRED for paid templates.
+    #[arg(long)]
+    payer_wallet: Option<String>,
+    /// Estimated token usage — used only for per_token pricing. Default 0.
+    #[arg(long, default_value = "0")]
+    tokens_estimate: u64,
+    /// Maximum iterations through the template's execution steps. Default 1.
+    #[arg(long, default_value = "1")]
+    max_iterations: u64,
+    /// Simulate execution without dispatching real transactions or charging fees.
+    #[arg(long)]
+    dry_run: bool,
+    /// RPC endpoint
+    #[arg(long, default_value = "http://127.0.0.1:8545")]
+    rpc: String,
+}
+
+impl RunTemplateCmd {
+    pub async fn execute(self) -> Result<()> {
+        output::print_header("Run Agent Template");
+        let spinner = output::create_spinner("Invoking agent...");
+        let rpc = rpc::RpcClient::new(&self.rpc);
+
+        let mut params = serde_json::json!({
+            "agent_id": self.agent_id,
+            "max_iterations": self.max_iterations,
+            "dry_run": self.dry_run,
+            "tokens_estimate": self.tokens_estimate,
+        });
+        if let Some(ref w) = self.payer_wallet {
+            params["payer_wallet"] = serde_json::json!(w);
+        }
+
+        let result: Result<serde_json::Value> =
+            rpc.call("tenzro_runAgentTemplate", serde_json::json!([params])).await;
+        spinner.finish_and_clear();
+
+        match result {
+            Ok(report) => {
+                println!();
+                output::print_success("Agent invocation complete!");
+                if let Some(v) = report.get("template_id").and_then(|v| v.as_str()) {
+                    output::print_field("Template ID", v);
+                }
+                if let Some(v) = report.get("steps_executed").and_then(|v| v.as_u64()) {
+                    output::print_field("Steps Executed", &v.to_string());
+                }
+                if let Some(v) = report.get("steps_failed").and_then(|v| v.as_u64()) {
+                    output::print_field("Steps Failed", &v.to_string());
+                }
+                if let Some(v) = report.get("steps_skipped_by_dry_run").and_then(|v| v.as_u64()) {
+                    if v > 0 {
+                        output::print_field("Steps Skipped (dry-run)", &v.to_string());
+                    }
+                }
+                if let Some(v) = report.get("fee_paid").and_then(|v| v.as_str()) {
+                    output::print_field("Fee Paid", &format!("{} base units", v));
+                }
+                if let Some(v) = report.get("commission_bps").and_then(|v| v.as_u64()) {
+                    output::print_field("Commission", &format!("{} bps", v));
+                }
+                if let Some(v) = report.get("network_commission").and_then(|v| v.as_str()) {
+                    output::print_field("Network Commission", &format!("{} base units", v));
+                }
+                if let Some(v) = report.get("creator_share").and_then(|v| v.as_str()) {
+                    output::print_field("Creator Share", &format!("{} base units", v));
+                }
+                if let Some(v) = report.get("payer_wallet").and_then(|v| v.as_str()) {
+                    output::print_field("Payer Wallet", v);
+                }
+                if let Some(v) = report.get("creator_wallet").and_then(|v| v.as_str()) {
+                    output::print_field("Creator Wallet", v);
+                }
+                if let Some(v) = report.get("treasury").and_then(|v| v.as_str()) {
+                    output::print_field("Treasury", v);
+                }
+                if let Some(v) = report.get("invocation_count").and_then(|v| v.as_u64()) {
+                    output::print_field("Invocation Count", &v.to_string());
+                }
+                if let Some(v) = report.get("total_revenue").and_then(|v| v.as_str()) {
+                    output::print_field("Total Revenue", &format!("{} base units", v));
+                }
+            }
+            Err(e) => output::print_error(&format!("Agent run failed: {}", e)),
+        }
+
         Ok(())
     }
 }
