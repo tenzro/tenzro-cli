@@ -74,8 +74,10 @@ tenzro wallet import <seed-phrase|private-key>
 # Check balance (calls eth_getBalance)
 tenzro wallet balance --address <address>
 
-# Send tokens (queries nonce + chain ID, builds tx, calls eth_sendRawTransaction)
-tenzro wallet send <to-address> <amount> --asset TNZO
+# Send tokens (queries nonce + chain ID, then calls tenzro_signAndSendTransaction:
+# node computes Transaction::hash() with canonical timestamp-inclusive preimage,
+# signs with Ed25519, synchronously verifies, and returns -32003 on bad signature)
+tenzro wallet send <to-address> <amount> --asset TNZO --private-key <hex>
 
 # List all wallets (calls tenzro_listAccounts)
 tenzro wallet list

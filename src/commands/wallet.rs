@@ -327,6 +327,13 @@ pub struct WalletSendCmd {
     #[arg(long)]
     from: Option<String>,
 
+    /// Private key (hex, with or without 0x prefix) used by the node to
+    /// sign the transaction server-side via tenzro_signAndSendTransaction.
+    /// If omitted, the CLI will attempt to read a private key from the
+    /// local config (written by `wallet import`).
+    #[arg(long)]
+    private_key: Option<String>,
+
     /// RPC endpoint
     #[arg(long, default_value = "http://127.0.0.1:8545")]
     rpc: String,
@@ -343,11 +350,33 @@ impl WalletSendCmd {
         let decimals = 18;
         let amount_wei = (amount_float * 10f64.powi(decimals)) as u64;
 
+        // Resolve sender address (from --from or stored config)
+        let cfg = crate::config::load_config();
+        let from_address = self.from.clone()
+            .or_else(|| cfg.wallet_address.clone())
+            .ok_or_else(|| anyhow::anyhow!("--from address is required (or run `tenzro-cli wallet import` first)"))?;
+
+        // Resolve private key (--private-key flag, or prompt the user).
+        // A signed transaction is mandatory — the node rejects unsigned
+        // submissions via eth_sendRawTransaction with JSON-RPC -32003.
+        let private_key_raw = match &self.private_key {
+            Some(k) => k.clone(),
+            None => {
+                use dialoguer::Password;
+                Password::new()
+                    .with_prompt("Private key for sender (hex)")
+                    .interact()?
+            }
+        };
+        let private_key = if private_key_raw.starts_with("0x") {
+            private_key_raw.clone()
+        } else {
+            format!("0x{}", private_key_raw)
+        };
+
         // Show transaction details
         println!();
-        if let Some(from) = &self.from {
-            output::print_field("From", &output::format_address(from));
-        }
+        output::print_field("From", &output::format_address(&from_address));
         output::print_field("To", &output::format_address(&self.to));
         output::print_field("Amount", &format!("{} {}", self.amount, self.asset));
         output::print_field("Network Fee", "~0.001 TNZO");
@@ -367,51 +396,64 @@ impl WalletSendCmd {
 
         let spinner = output::create_spinner("Querying nonce and chain ID...");
 
-        // Create and send transaction
         let rpc = RpcClient::new(&self.rpc);
 
-        // Get the sender address (from --from or default)
-        let from_address = self.from.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("--from address is required"))?;
-
-        // Query nonce for the sender
-        let nonce_result = rpc.call::<serde_json::Value>("tenzro_getNonce", serde_json::json!([from_address])).await;
+        // Query nonce for the sender (eth_getTransactionCount matches the Python skill)
+        let nonce_result = rpc.call::<serde_json::Value>(
+            "eth_getTransactionCount",
+            serde_json::json!([&from_address, "latest"]),
+        ).await;
         let nonce: u64 = match nonce_result {
-            Ok(val) => u64::from_str_radix(val.as_str().unwrap_or("0x0").trim_start_matches("0x"), 16).unwrap_or(0),
+            Ok(val) => u64::from_str_radix(
+                val.as_str().unwrap_or("0x0").trim_start_matches("0x"),
+                16,
+            ).unwrap_or(0),
             Err(_) => 0,
         };
 
         // Query chain ID
         let chain_id_result = rpc.call::<serde_json::Value>("eth_chainId", serde_json::json!([])).await;
         let chain_id: u64 = match chain_id_result {
-            Ok(val) => u64::from_str_radix(val.as_str().unwrap_or("0x539").trim_start_matches("0x"), 16).unwrap_or(1337),
+            Ok(val) => u64::from_str_radix(
+                val.as_str().unwrap_or("0x539").trim_start_matches("0x"),
+                16,
+            ).unwrap_or(1337),
             Err(_) => 1337,
         };
 
-        spinner.set_message("Building transaction...");
+        spinner.set_message("Signing and submitting transaction...");
 
-        // Build transaction as JSON object
-        let tx_json = serde_json::json!({
-            "to": self.to,
-            "value": format!("0x{:x}", amount_wei),
-            "nonce": format!("0x{:x}", nonce),
-            "gas_limit": "0x5208",  // 21000 for simple transfer
-            "gas_price": "0x3b9aca00",  // 1 gwei
-            "chain_id": format!("0x{:x}", chain_id),
-            "data": "0x"
-        });
+        // Atomic sign + submit: the node computes Transaction::hash() with
+        // the canonical preimage (including timestamp) and verifies the
+        // Ed25519 signature before accepting — see node/src/rpc.rs
+        // `handle_sign_and_send_transaction`.
+        let result: serde_json::Value = rpc.call(
+            "tenzro_signAndSendTransaction",
+            serde_json::json!({
+                "from": from_address,
+                "to": self.to,
+                "value": amount_wei,
+                "gas_limit": 21000u64,
+                "gas_price": 1_000_000_000u64,
+                "nonce": nonce,
+                "chain_id": chain_id,
+                "private_key": private_key,
+            }),
+        ).await?;
 
-        // Hex-encode the JSON transaction
-        let raw_tx = format!("0x{}", hex::encode(tx_json.to_string().as_bytes()));
-
-        spinner.set_message("Broadcasting transaction...");
-
-        let tx_hash: String = rpc.call("eth_sendRawTransaction", serde_json::json!([raw_tx])).await?;
+        let tx_hash = result
+            .get("tx_hash")
+            .or_else(|| result.get("transaction_hash"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("<unknown>")
+            .to_string();
 
         spinner.set_message("Waiting for confirmation...");
 
-        // Get transaction receipt
-        let receipt: serde_json::Value = rpc.call("eth_getTransactionReceipt", serde_json::json!([&tx_hash])).await
+        // Get transaction receipt (best-effort)
+        let receipt: serde_json::Value = rpc
+            .call("eth_getTransactionReceipt", serde_json::json!([&tx_hash]))
+            .await
             .unwrap_or(serde_json::json!({"blockNumber": "0x0"}));
 
         spinner.finish_and_clear();
