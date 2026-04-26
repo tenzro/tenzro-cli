@@ -291,21 +291,41 @@ tenzro canton submit <command>
 
 ### Escrow Operations
 
-```bash
-# Create escrow
-tenzro escrow create --amount <amount> --recipient <address>
+Escrow `create` / `release` / `refund` are consensus-mediated typed transactions
+(`CreateEscrow`, `ReleaseEscrow`, `RefundEscrow`) signed with the payer's
+Ed25519 key and submitted via `tenzro_signAndSendTransaction`. Funds are locked
+in a deterministically-derived vault address by the Native VM; only the
+original payer can release or refund.
 
-# Release escrow
-tenzro escrow release <escrow_id>
+```bash
+# Create on-chain escrow (signed CreateEscrow tx, gas: 75,000)
+tenzro escrow create \
+  --payer 0xabc... \
+  --payee 0xdef... \
+  --amount 1000000000000000000 \
+  --asset TNZO \
+  --expires-at 1735689600000 \
+  --release timeout \
+  --private-key 0x...   # or omit to be prompted
+
+# Release escrowed funds to the payee (signed ReleaseEscrow tx, gas: 60,000)
+tenzro escrow release <escrow_id> --payer 0xabc... --proof 0x... --private-key 0x...
+
+# Refund escrowed funds back to the payer (signed RefundEscrow tx, gas: 50,000)
+# Requires expiry passed OR release condition is Timeout/Custom.
+tenzro escrow refund <escrow_id> --payer 0xabc... --private-key 0x...
+
+# Inspect an escrow record by id (read RPC, no signing)
+tenzro escrow get <escrow_id>
 
 # Open payment channel
-tenzro escrow open-channel --counterparty <address> --amount <amount>
+tenzro escrow open-channel --counterparty <address> --deposit <amount>
 
 # Close channel
 tenzro escrow close-channel <channel_id>
 
-# Delegate escrow
-tenzro escrow delegate <escrow_id> <delegate>
+# Delegate voting power
+tenzro escrow delegate --from <addr> --to <validator> --amount <stake>
 
 # Settle payment (tenzro_settle)
 tenzro escrow settle <settlement_id>
@@ -313,6 +333,11 @@ tenzro escrow settle <settlement_id>
 # Get settlement (tenzro_getSettlement)
 tenzro escrow get-settlement <settlement_id>
 ```
+
+`--release` accepts: `timeout` | `provider` | `consumer` | `both` | `verifier` | `custom`.
+The `escrow_id` is derived deterministically by the VM as
+`SHA-256("tenzro/escrow/id/v1" || payer || nonce_le)` and emitted in the
+receipt log of the `CreateEscrow` transaction.
 
 ### ZK Ceremony
 

@@ -327,13 +327,6 @@ pub struct WalletSendCmd {
     #[arg(long)]
     from: Option<String>,
 
-    /// Private key (hex, with or without 0x prefix) used by the node to
-    /// sign the transaction server-side via tenzro_signAndSendTransaction.
-    /// If omitted, the CLI will attempt to read a private key from the
-    /// local config (written by `wallet import`).
-    #[arg(long)]
-    private_key: Option<String>,
-
     /// RPC endpoint
     #[arg(long, default_value = "http://127.0.0.1:8545")]
     rpc: String,
@@ -356,23 +349,10 @@ impl WalletSendCmd {
             .or_else(|| cfg.wallet_address.clone())
             .ok_or_else(|| anyhow::anyhow!("--from address is required (or run `tenzro-cli wallet import` first)"))?;
 
-        // Resolve private key (--private-key flag, or prompt the user).
-        // A signed transaction is mandatory — the node rejects unsigned
-        // submissions via eth_sendRawTransaction with JSON-RPC -32003.
-        let private_key_raw = match &self.private_key {
-            Some(k) => k.clone(),
-            None => {
-                use dialoguer::Password;
-                Password::new()
-                    .with_prompt("Private key for sender (hex)")
-                    .interact()?
-            }
-        };
-        let private_key = if private_key_raw.starts_with("0x") {
-            private_key_raw.clone()
-        } else {
-            format!("0x{}", private_key_raw)
-        };
+        // Authentication is ambient: the node identifies the signing wallet
+        // from the OAuth/DPoP bearer token (TENZRO_BEARER_JWT +
+        // TENZRO_DPOP_PROOF env vars, forwarded by RpcClient::call). The
+        // node enforces that the bearer's authorized wallet matches `from`.
 
         // Show transaction details
         println!();
@@ -437,7 +417,6 @@ impl WalletSendCmd {
                 "gas_price": 1_000_000_000u64,
                 "nonce": nonce,
                 "chain_id": chain_id,
-                "private_key": private_key,
             }),
         ).await?;
 

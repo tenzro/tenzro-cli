@@ -191,25 +191,16 @@ impl JoinCmd {
             }
         }
 
-        // Save to config
-        // Display onboarding key (issued automatically during participate)
-        let onboarding_key_raw = if let Some(ok) = result.get("onboarding_key") {
-            let key = ok.get("key").and_then(|v| v.as_str()).unwrap_or("");
-            let scope = ok.get("scope").and_then(|v| v.as_str()).unwrap_or("");
-            if !key.is_empty() {
-                println!();
-                output::print_header("Onboarding Key");
-                println!();
-                output::print_field("Key", key);
-                output::print_field("Scope", scope);
-                println!();
-                output::print_warning("Save this key securely! It is shown only once.");
-                output::print_info("Use as: Authorization: Bearer <key> for authenticated MCP/RPC access.");
-            }
-            Some(key.to_string())
-        } else {
-            None
-        };
+        // `tenzro_participate` provisions the identity + wallet + hardware
+        // profile. To acquire an authenticated bearer, call one of
+        // `tenzro_onboardHuman` / `tenzro_onboardDelegatedAgent` /
+        // `tenzro_onboardAutonomousAgent` — each returns an OAuth 2.1 +
+        // DPoP-bound JWT. Export the result as `TENZRO_BEARER_JWT` +
+        // `TENZRO_DPOP_PROOF` for subsequent privileged calls.
+        println!();
+        output::print_info(
+            "Run `tenzro auth onboard-human` to mint a DPoP-bound JWT for this identity, then export TENZRO_BEARER_JWT + TENZRO_DPOP_PROOF for privileged calls.",
+        );
 
         let spinner = output::create_spinner("Saving configuration...");
 
@@ -223,9 +214,6 @@ impl JoinCmd {
             cfg.username = Some(display_name);
         }
         cfg.role = Some(if is_micro_node { "micro-node".to_string() } else { self.r#type.clone() });
-        if let Some(ref key) = onboarding_key_raw {
-            cfg.onboarding_key = Some(key.clone());
-        }
 
         config::save_config(&cfg)?;
 

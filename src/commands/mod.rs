@@ -43,6 +43,7 @@ pub mod ap2;
 pub mod erc8004;
 pub mod wormhole;
 pub mod cct;
+pub mod train;
 
 // Re-export command types
 pub use node::NodeCommand;
@@ -85,3 +86,4 @@ pub use ap2::Ap2Command;
 pub use erc8004::Erc8004Command;
 pub use wormhole::WormholeCommand;
 pub use cct::CctCommand;
+pub use train::TrainCommand;

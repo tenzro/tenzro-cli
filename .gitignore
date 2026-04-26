@@ -25,9 +25,8 @@
 # Debug
 *.dSYM/
 
-# Claude
-.claude/
-
-# Claude Code
+# Claude Code (project-local AI assistant context — never commit)
 CLAUDE.md
+CLAUDE.local.md
+**/CLAUDE.md
 .claude/

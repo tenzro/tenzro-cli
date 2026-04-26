@@ -85,7 +85,12 @@ impl RpcClient {
         &self.rpc_url
     }
 
-    /// Make a JSON-RPC call
+    /// Make a JSON-RPC call.
+    ///
+    /// Forwards `Authorization: DPoP <jwt>` and `DPoP: <proof>` headers
+    /// when the `TENZRO_BEARER_JWT` and `TENZRO_DPOP_PROOF` env vars are set.
+    /// Auth-sensitive RPCs (signing, escrow, settlement) require these; public
+    /// RPCs (balance/status/block reads) work without them.
     pub async fn call<T: serde::de::DeserializeOwned>(&self, method: &str, params: Value) -> Result<T> {
         let id = self.request_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let request = JsonRpcRequest {
@@ -95,11 +100,19 @@ impl RpcClient {
             id,
         };
 
-        let response = self.http
-            .post(&self.rpc_url)
-            .json(&request)
-            .send()
-            .await?;
+        let mut req = self.http.post(&self.rpc_url).json(&request);
+        if let Ok(bearer) = std::env::var("TENZRO_BEARER_JWT") {
+            if !bearer.is_empty() {
+                req = req.header("Authorization", format!("DPoP {}", bearer));
+            }
+        }
+        if let Ok(dpop) = std::env::var("TENZRO_DPOP_PROOF") {
+            if !dpop.is_empty() {
+                req = req.header("DPoP", dpop);
+            }
+        }
+
+        let response = req.send().await?;
 
         let body: JsonRpcResponse<T> = response.json().await?;
 

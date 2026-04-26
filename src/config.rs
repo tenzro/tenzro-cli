@@ -39,8 +39,6 @@ pub struct PersistedConfig {
     pub display_name: Option<String>,
     pub username: Option<String>,
     pub role: Option<String>,
-    /// Onboarding key for authenticated MCP/RPC access (issued at join time)
-    pub onboarding_key: Option<String>,
     pub schedule: Option<ProviderSchedule>,
     pub pricing: Option<ProviderPricing>,
     #[serde(default)]

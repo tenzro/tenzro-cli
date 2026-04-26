@@ -21,6 +21,7 @@ use commands::{
     CrosschainCommand, EventsCommand, CryptoCommand, TeeCommand,
     ZkCommand, VrfCommand, CustodyCommand, AppCommand,
     CortexCommand, Ap2Command, Erc8004Command, WormholeCommand, CctCommand,
+    TrainCommand,
 };
 
 /// Tenzro Network CLI — node operation, wallet management, provider tools
@@ -198,6 +199,10 @@ enum Command {
     #[command(subcommand)]
     Cct(CctCommand),
 
+    /// Tenzro Train — decentralized verifiable foundation-model training
+    #[command(subcommand)]
+    Train(TrainCommand),
+
     /// Interactive chat with AI models
     Chat(ChatCmd),
 
@@ -333,6 +338,7 @@ async fn main() -> Result<()> {
         Command::Erc8004(cmd) => cmd.execute().await?,
         Command::Wormhole(cmd) => cmd.execute().await?,
         Command::Cct(cmd) => cmd.execute().await?,
+        Command::Train(cmd) => cmd.execute().await?,
         Command::Faucet(cmd) => execute_faucet(cmd).await?,
         Command::Chat(cmd) => execute_chat(cmd).await?,
         Command::Hardware(cmd) => commands::hardware::execute(&cmd.format).await?,
