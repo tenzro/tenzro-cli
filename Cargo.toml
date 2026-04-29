@@ -29,6 +29,7 @@ anyhow = { workspace = true }
 indicatif = { workspace = true }
 dialoguer = { workspace = true }
 hex = { workspace = true }
+base64 = { workspace = true }
 uuid = { workspace = true }
 reqwest = { version = "0.12", features = ["json"] }
 dirs = "5"
@@ -36,9 +37,6 @@ sysinfo = "0.31"
 sha2 = "0.10"
 atty = "0.2"
 chrono = "0.4"
-ark-bn254 = "0.4"
-ark-ec = "0.4"
-ark-serialize = "0.4"
 rand = { workspace = true }
 
 [features]

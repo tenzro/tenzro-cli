@@ -15,7 +15,6 @@ pub mod join;
 pub mod schedule;
 pub mod hardware;
 pub mod username;
-pub mod ceremony;
 pub mod agent;
 pub mod canton;
 pub mod escrow;
@@ -44,6 +43,7 @@ pub mod erc8004;
 pub mod wormhole;
 pub mod cct;
 pub mod train;
+pub mod multimodal;
 
 // Re-export command types
 pub use node::NodeCommand;
@@ -58,7 +58,6 @@ pub use payment::PaymentCommand;
 pub use join::JoinCmd;
 pub use schedule::ScheduleCommand;
 pub use username::SetUsernameCmd;
-pub use ceremony::CeremonyCommand;
 pub use agent::AgentCommand;
 pub use canton::CantonCommand;
 pub use escrow::EscrowCommand;
@@ -87,3 +86,6 @@ pub use erc8004::Erc8004Command;
 pub use wormhole::WormholeCommand;
 pub use cct::CctCommand;
 pub use train::TrainCommand;
+pub use multimodal::{
+    DetectCommand, EmbedTextCommand, EmbedVideoCommand, SegmentCommand, TranscribeCommand,
+};

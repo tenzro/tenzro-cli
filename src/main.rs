@@ -14,7 +14,7 @@ use commands::{
     NodeCommand, WalletCommand, ModelCommand, StakeCommand,
     GovernanceCommand, ProviderCommand, InferenceCommand,
     IdentityCommand, PaymentCommand, JoinCmd, ScheduleCommand,
-    SetUsernameCmd, CeremonyCommand, AgentCommand, CantonCommand,
+    SetUsernameCmd, AgentCommand, CantonCommand,
     EscrowCommand, TaskCommand, MarketplaceCommand, SkillCommand,
     ToolCommand, TokenCommand, ContractCommand, BridgeCommand,
     DebridgeCommand, LifiCommand, NftCommand, ComplianceCommand,
@@ -22,6 +22,7 @@ use commands::{
     ZkCommand, VrfCommand, CustodyCommand, AppCommand,
     CortexCommand, Ap2Command, Erc8004Command, WormholeCommand, CctCommand,
     TrainCommand,
+    DetectCommand, EmbedTextCommand, EmbedVideoCommand, SegmentCommand, TranscribeCommand,
 };
 
 /// Tenzro Network CLI — node operation, wallet management, provider tools
@@ -98,10 +99,6 @@ enum Command {
     /// Escrow and payment channel commands
     #[command(subcommand)]
     Escrow(EscrowCommand),
-
-    /// ZK trusted setup ceremony commands
-    #[command(subcommand)]
-    Ceremony(CeremonyCommand),
 
     /// Task marketplace commands
     #[command(subcommand)]
@@ -202,6 +199,26 @@ enum Command {
     /// Tenzro Train — decentralized verifiable foundation-model training
     #[command(subcommand)]
     Train(TrainCommand),
+
+    /// Text embeddings (Qwen3-Embedding, EmbeddingGemma, BGE-M3)
+    #[command(subcommand, name = "embed-text")]
+    EmbedText(EmbedTextCommand),
+
+    /// Image segmentation (SAM 3, SAM 2, EdgeSAM, MobileSAM)
+    #[command(subcommand)]
+    Segment(SegmentCommand),
+
+    /// Object detection (RF-DETR, D-FINE)
+    #[command(subcommand)]
+    Detect(DetectCommand),
+
+    /// Audio transcription / ASR (Moonshine, Distil-Whisper, Parakeet, Canary)
+    #[command(subcommand)]
+    Transcribe(TranscribeCommand),
+
+    /// Video embeddings (catalog scaffolding for V-JEPA / VideoMAE)
+    #[command(subcommand, name = "embed-video")]
+    EmbedVideo(EmbedVideoCommand),
 
     /// Interactive chat with AI models
     Chat(ChatCmd),
@@ -313,7 +330,6 @@ async fn main() -> Result<()> {
         Command::Agent(cmd) => cmd.execute().await?,
         Command::Canton(cmd) => cmd.execute().await?,
         Command::Escrow(cmd) => cmd.execute().await?,
-        Command::Ceremony(cmd) => cmd.execute().await?,
         Command::Task(cmd) => cmd.execute().await?,
         Command::Marketplace(cmd) => cmd.execute().await?,
         Command::Skill(cmd) => cmd.execute().await?,
@@ -339,6 +355,11 @@ async fn main() -> Result<()> {
         Command::Wormhole(cmd) => cmd.execute().await?,
         Command::Cct(cmd) => cmd.execute().await?,
         Command::Train(cmd) => cmd.execute().await?,
+        Command::EmbedText(cmd) => cmd.execute().await?,
+        Command::Segment(cmd) => cmd.execute().await?,
+        Command::Detect(cmd) => cmd.execute().await?,
+        Command::Transcribe(cmd) => cmd.execute().await?,
+        Command::EmbedVideo(cmd) => cmd.execute().await?,
         Command::Faucet(cmd) => execute_faucet(cmd).await?,
         Command::Chat(cmd) => execute_chat(cmd).await?,
         Command::Hardware(cmd) => commands::hardware::execute(&cmd.format).await?,

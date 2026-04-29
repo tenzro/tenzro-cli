@@ -8,6 +8,7 @@ The official command-line interface for operating Tenzro Network nodes, managing
 - **Node Management**: Monitor node status
 - **Wallet Operations**: Create MPC wallets, check balances, send transactions (real reqwest RPC client)
 - **Model Management**: List, download, serve AI models (local + remote RPC)
+- **Multi-Modal Inference**: Forecast, vision/text/video embedding, segmentation, detection, audio transcription via dedicated CLI commands
 - **Staking**: Stake TNZO tokens as validator or provider
 - **Governance**: Participate in on-chain governance and voting
 - **Provider Tools**: Register and manage inference/TEE providers
@@ -124,6 +125,40 @@ tenzro chat
 # Local llama.cpp inference with RPC fallback (tenzro_chat)
 # Commands: /history, /load <session_id>, /exit
 ```
+
+### Multi-Modal Inference
+
+```bash
+# Timeseries forecasting (tenzro_forecast)
+# Catalog: Chronos-2, Chronos-Bolt small/base, TimesFM 2.5 200M, Granite-TTM-r2
+tenzro forecast --model chronos-bolt-small --context <values> --horizon 64
+
+# Text embedding (tenzro_textEmbed)
+# Catalog: Qwen3-Embedding 0.6B/4B/8B, EmbeddingGemma-300M, BGE-M3, Snowflake Arctic
+tenzro embed-text --model qwen3-embedding-0.6b --text "hello world"
+
+# Image embedding / similarity (tenzro_visionEmbed, tenzro_visionSimilarity)
+# Catalog: CLIP ViT-B/32 + L/14, SigLIP2 base/large/so400m, DINOv3 vits16/vitb16/vitl16
+tenzro embed-image --model siglip2-base --image ./photo.png
+
+# Segmentation (tenzro_segment)
+# Catalog: SAM 3 / 3.1, SAM 2 base/large, EdgeSAM, MobileSAM
+tenzro segment --model sam-2-base --image ./photo.png --points "320,240"
+
+# Object detection (tenzro_detect)
+# Catalog: RF-DETR n/s/m/b/l/2xl, D-FINE n/s/m/l/x
+tenzro detect --model rf-detr-medium --image ./photo.png --threshold 0.5
+
+# Audio transcription (tenzro_transcribe)
+# Catalog: Moonshine v2, Distil-Whisper, Whisper-v3-turbo, Parakeet-TDT-v3, Canary-1B-Flash
+tenzro transcribe --model whisper-large-v3-turbo --audio ./clip.wav
+
+# Video embedding (tenzro_videoEmbed)
+# Wave 1: catalog empty, scaffolding only
+tenzro embed-video --model <pending> --video ./clip.mp4
+```
+
+License-tier gating applies on first load: CommercialCustom models (DINOv3, SAM, Gemma) require `--accept-license <id>`; non-commercial models require `--accept-non-commercial`.
 
 ### Staking
 
@@ -339,24 +374,25 @@ The `escrow_id` is derived deterministically by the VM as
 `SHA-256("tenzro/escrow/id/v1" || payer || nonce_le)` and emitted in the
 receipt log of the `CreateEscrow` transaction.
 
-### ZK Ceremony
+### ZK Proofs (Plonky3 STARKs over KoalaBear)
 
 ```bash
-# Initialize trusted setup ceremony
-tenzro ceremony init
+# List available AIRs
+tenzro zk circuits
 
-# Contribute to ceremony
-tenzro ceremony contribute
+# Generate a Plonky3 STARK proof
+tenzro zk prove \
+  --circuit-id inference \
+  --witness '{"model_checksum":1,"input_checksum":2,"computed_output":3}'
 
-# Verify contribution
-tenzro ceremony verify
-
-# Finalize ceremony
-tenzro ceremony finalize
-
-# Check ceremony status
-tenzro ceremony status
+# Verify a proof
+tenzro zk verify \
+  --circuit-id inference \
+  --inputs '["0x01000000","0x02000000","0x03000000"]' \
+  --proof <hex>
 ```
+
+Public inputs are passed as a JSON array of hex strings, each a 4-byte little-endian KoalaBear field-element chunk. Plonky3 STARKs require no trusted setup — there is no ceremony or keygen command.
 
 ### Task Marketplace
 
