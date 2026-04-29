@@ -44,6 +44,7 @@ pub mod wormhole;
 pub mod cct;
 pub mod train;
 pub mod multimodal;
+pub mod auth;
 
 // Re-export command types
 pub use node::NodeCommand;
@@ -89,3 +90,4 @@ pub use train::TrainCommand;
 pub use multimodal::{
     DetectCommand, EmbedTextCommand, EmbedVideoCommand, SegmentCommand, TranscribeCommand,
 };
+pub use auth::AuthCommand;

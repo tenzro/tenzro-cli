@@ -43,6 +43,20 @@ pub struct PersistedConfig {
     pub pricing: Option<ProviderPricing>,
     #[serde(default)]
     pub served_models: Vec<String>,
+    /// OAuth 2.1 access token (HS256 JWT, optionally DPoP-bound).
+    /// Sent as `Authorization: Bearer <token>` on privileged calls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
+    /// Long-lived opaque refresh token. Exchange via `tenzro auth refresh`
+    /// when the access token expires.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
+    /// Unix timestamp (seconds) at which the access token expires.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub access_token_expires_at: Option<u64>,
+    /// `true` iff the access token requires a DPoP proof on every call.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dpop_bound: Option<bool>,
 }
 
 /// Get the path to the config file: `~/.tenzro/config.json`

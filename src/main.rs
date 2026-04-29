@@ -23,6 +23,7 @@ use commands::{
     CortexCommand, Ap2Command, Erc8004Command, WormholeCommand, CctCommand,
     TrainCommand,
     DetectCommand, EmbedTextCommand, EmbedVideoCommand, SegmentCommand, TranscribeCommand,
+    AuthCommand,
 };
 
 /// Tenzro Network CLI — node operation, wallet management, provider tools
@@ -220,6 +221,9 @@ enum Command {
     #[command(subcommand, name = "embed-video")]
     EmbedVideo(EmbedVideoCommand),
 
+    /// OAuth 2.1 + DPoP auth: refresh access tokens, link wallet for auth
+    Auth(AuthCommand),
+
     /// Interactive chat with AI models
     Chat(ChatCmd),
 
@@ -360,6 +364,7 @@ async fn main() -> Result<()> {
         Command::Detect(cmd) => cmd.execute().await?,
         Command::Transcribe(cmd) => cmd.execute().await?,
         Command::EmbedVideo(cmd) => cmd.execute().await?,
+        Command::Auth(cmd) => cmd.execute().await?,
         Command::Faucet(cmd) => execute_faucet(cmd).await?,
         Command::Chat(cmd) => execute_chat(cmd).await?,
         Command::Hardware(cmd) => commands::hardware::execute(&cmd.format).await?,
