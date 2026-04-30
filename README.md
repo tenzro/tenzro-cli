@@ -61,6 +61,11 @@ tenzro join
 ```bash
 # Check node status
 tenzro node status
+
+# Inspect a contiguous range of blocks (read-only catch-up probe).
+# Calls tenzro_getBlockRange — returns up to 256 blocks per request,
+# with nextHeight + moreAvailable for pagination across pruning gaps.
+tenzro node sync-range --start 0 --end 255
 ```
 
 ### Wallet Operations

@@ -19,6 +19,8 @@ pub enum NodeCommand {
     Peers(NodePeersCmd),
     /// Show sync status
     Syncing(NodeSyncingCmd),
+    /// Fetch a contiguous range of blocks for sync inspection
+    SyncRange(NodeSyncRangeCmd),
 }
 
 impl NodeCommand {
@@ -29,6 +31,7 @@ impl NodeCommand {
             Self::Stop(cmd) => cmd.execute().await,
             Self::Peers(cmd) => cmd.execute().await,
             Self::Syncing(cmd) => cmd.execute().await,
+            Self::SyncRange(cmd) => cmd.execute().await,
         }
     }
 }
@@ -313,7 +316,7 @@ pub struct NodeSyncingCmd {
 
 impl NodeSyncingCmd {
     pub async fn execute(&self) -> Result<()> {
-        use crate::rpc::RpcClient;
+        use crate::rpc::{RpcClient, parse_hex_u64};
         output::print_header("Sync Status");
         let rpc = RpcClient::new(&self.rpc);
         let result: serde_json::Value = rpc.call("tenzro_syncing", serde_json::json!([])).await?;
@@ -322,12 +325,108 @@ impl NodeSyncingCmd {
             if syncing { output::print_info("Node is syncing..."); }
             else { output::print_success("Node is fully synced."); }
         } else {
-            if let Some(current) = result.get("currentBlock").and_then(|v| v.as_u64()) {
-                output::print_field("Current Block", &current.to_string());
+            // Heights come back hex-encoded ("0x...") per the eth_syncing /
+            // tenzro_syncing JSON-RPC convention.
+            if let Some(current) = result.get("currentBlock").and_then(|v| v.as_str()) {
+                output::print_field("Current Block", &parse_hex_u64(current).to_string());
             }
-            if let Some(highest) = result.get("highestBlock").and_then(|v| v.as_u64()) {
-                output::print_field("Highest Block", &highest.to_string());
+            if let Some(highest) = result.get("highestBlock").and_then(|v| v.as_str()) {
+                output::print_field("Highest Block", &parse_hex_u64(highest).to_string());
             }
+        }
+        Ok(())
+    }
+}
+
+/// Fetch a contiguous range of blocks via the tenzro_getBlockRange RPC.
+///
+/// Read-only operator inspection — useful when a node has fallen behind and
+/// you want to verify which blocks the network is actually serving without
+/// hand-rolling a curl loop. Use `--max` to cap the batch size (default 64,
+/// max 256 — enforced server-side).
+#[derive(Debug, Parser)]
+pub struct NodeSyncRangeCmd {
+    /// RPC endpoint
+    #[arg(long, default_value = "http://127.0.0.1:8545")]
+    rpc: String,
+
+    /// Inclusive starting height
+    #[arg(long)]
+    start: u64,
+
+    /// Inclusive ending height
+    #[arg(long)]
+    end: u64,
+
+    /// Maximum number of blocks to return in this batch (1..=256, default 64)
+    #[arg(long)]
+    max: Option<u64>,
+
+    /// Output format (text, json)
+    #[arg(long, default_value = "text")]
+    format: String,
+}
+
+impl NodeSyncRangeCmd {
+    pub async fn execute(&self) -> Result<()> {
+        use crate::rpc::RpcClient;
+
+        if self.start > self.end {
+            return Err(anyhow::anyhow!(
+                "--start ({}) must be <= --end ({})",
+                self.start,
+                self.end
+            ));
+        }
+
+        output::print_header("Block Range Sync");
+
+        let mut params = serde_json::json!({
+            "startHeight": self.start,
+            "endHeight": self.end,
+        });
+        if let Some(max) = self.max {
+            params["maxResults"] = serde_json::json!(max);
+        }
+
+        let rpc = RpcClient::new(&self.rpc);
+        let result: serde_json::Value = rpc
+            .call("tenzro_getBlockRange", serde_json::json!([params]))
+            .await?;
+
+        if self.format == "json" {
+            output::print_json(&result)?;
+            return Ok(());
+        }
+
+        let blocks = result
+            .get("blocks")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let next_height = result
+            .get("nextHeight")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let more = result
+            .get("moreAvailable")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let local_tip = result
+            .get("localTip")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+
+        output::print_field("Blocks Returned", &blocks.to_string());
+        output::print_field("Next Height", &next_height.to_string());
+        output::print_field("More Available", &more.to_string());
+        output::print_field("Local Tip", &local_tip.to_string());
+
+        if more {
+            output::print_info(&format!(
+                "Continue with --start {} to fetch the next batch",
+                next_height
+            ));
         }
         Ok(())
     }
