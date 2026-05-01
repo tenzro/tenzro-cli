@@ -24,6 +24,7 @@ use commands::{
     TrainCommand,
     DetectCommand, EmbedTextCommand, EmbedVideoCommand, SegmentCommand, TranscribeCommand,
     AuthCommand,
+    X402Command, ReputationCommand, ApprovalCommand, DisputeCommand, ProvenanceCommand,
 };
 
 /// Tenzro Network CLI — node operation, wallet management, provider tools
@@ -224,6 +225,38 @@ enum Command {
     /// OAuth 2.1 + DPoP auth: refresh access tokens, link wallet for auth
     Auth(AuthCommand),
 
+    /// AAP (Agent Access Protocol) — alias for `auth`. AAP is the
+    /// agent-facing layering on top of OAuth 2.1 + DPoP + RAR; the
+    /// underlying RPCs are the same `tenzro_*Token*` / wallet-link
+    /// methods exposed by `auth`.
+    #[command(name = "aap")]
+    Aap(AuthCommand),
+
+    /// ERC-8004 Trustless Agents Registry — alias for `erc8004` with
+    /// the canonical short name from EIP-8004.
+    #[command(subcommand, name = "8004")]
+    Eip8004(Erc8004Command),
+
+    /// x402 (Coinbase HTTP-402 micropayment protocol): list-schemes, pay
+    #[command(subcommand)]
+    X402(X402Command),
+
+    /// Provider reputation: get current score
+    #[command(subcommand)]
+    Reputation(ReputationCommand),
+
+    /// Pending approvals from delegated machines: list, get, decide
+    #[command(subcommand)]
+    Approval(ApprovalCommand),
+
+    /// Channel-dispute inspection: status by id, list-by-channel
+    #[command(subcommand)]
+    Dispute(DisputeCommand),
+
+    /// C2PA-style content provenance manifests (EU AI Act §50(2))
+    #[command(subcommand)]
+    Provenance(ProvenanceCommand),
+
     /// Interactive chat with AI models
     Chat(ChatCmd),
 
@@ -365,6 +398,13 @@ async fn main() -> Result<()> {
         Command::Transcribe(cmd) => cmd.execute().await?,
         Command::EmbedVideo(cmd) => cmd.execute().await?,
         Command::Auth(cmd) => cmd.execute().await?,
+        Command::Aap(cmd) => cmd.execute().await?,
+        Command::Eip8004(cmd) => cmd.execute().await?,
+        Command::X402(cmd) => cmd.execute().await?,
+        Command::Reputation(cmd) => cmd.execute().await?,
+        Command::Approval(cmd) => cmd.execute().await?,
+        Command::Dispute(cmd) => cmd.execute().await?,
+        Command::Provenance(cmd) => cmd.execute().await?,
         Command::Faucet(cmd) => execute_faucet(cmd).await?,
         Command::Chat(cmd) => execute_chat(cmd).await?,
         Command::Hardware(cmd) => commands::hardware::execute(&cmd.format).await?,
@@ -657,7 +697,12 @@ async fn execute_chat(cmd: ChatCmd) -> Result<()> {
                     spinner.finish_and_clear();
 
                     println!();
-                    println!("{}", result.text);
+                    // EU AI Act Art. 50(1): every assistant chunk is labeled
+                    // as AI-generated. Local-mode chat is end-user-facing, so
+                    // the disclosure shows up directly in the terminal.
+                    // Use the canonical helper so the prefix string lives in
+                    // exactly one place across the workspace.
+                    println!("{}", tenzro_node::eu_ai_disclosure::render_cli_chat_chunk(&result.text));
                     println!();
 
                     output::print_field(
@@ -715,7 +760,10 @@ async fn execute_chat(cmd: ChatCmd) -> Result<()> {
             match response {
                 Ok(chat_response) => {
                     println!();
-                    println!("{}", chat_response.output);
+                    // EU AI Act Art. 50(1) — same disclosure prefix as
+                    // local-mode. Network mode reaches the user through
+                    // the same terminal surface, so the rule is identical.
+                    println!("{}", tenzro_node::eu_ai_disclosure::render_cli_chat_chunk(&chat_response.output));
                     println!();
 
                     let cost_str = if chat_response.cost != "0" {
@@ -1063,7 +1111,8 @@ async fn models_menu(rpc: &rpc::RpcClient) -> Result<()> {
             })).await?;
             if let Some(output_text) = result.get("output").and_then(|v| v.as_str()) {
                 println!();
-                println!("{}", output_text);
+                // EU AI Act Art. 50(1) — match the chat REPL's prefix.
+                println!("{}", tenzro_node::eu_ai_disclosure::render_cli_chat_chunk(output_text));
             } else { output::print_json(&result)?; }
         }
         2 => {

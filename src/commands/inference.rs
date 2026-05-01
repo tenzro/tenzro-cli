@@ -1,7 +1,7 @@
 //! Inference request commands for the Tenzro CLI
 
 use clap::{Parser, Subcommand};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crate::output;
 
 /// Inference commands
@@ -9,12 +9,15 @@ use crate::output;
 pub enum InferenceCommand {
     /// Submit an inference request
     Request(InferenceRequestCmd),
+    /// Stream a chat completion, optionally billed against a payment channel.
+    Stream(InferenceStreamCmd),
 }
 
 impl InferenceCommand {
     pub async fn execute(&self) -> Result<()> {
         match self {
             Self::Request(cmd) => cmd.execute().await,
+            Self::Stream(cmd) => cmd.execute().await,
         }
     }
 }
@@ -187,6 +190,99 @@ impl InferenceRequestCmd {
                 println!();
                 output::print_success(&format!("Response saved to: {}", output_file));
             }
+        }
+
+        Ok(())
+    }
+}
+
+/// `tenzro inference stream <model_id> <message> [--channel <id>]`
+///
+/// Stream a chat completion via `tenzro_chatStream`. When `--channel` is
+/// supplied, the channel id is forwarded so the node can bill the
+/// streamed tokens against that micropayment channel; without it, the
+/// node falls back to whatever billing default is configured.
+///
+/// The streaming JSON-RPC method currently returns a single envelope
+/// with the full result plus token-usage metadata; this command prints
+/// the response text inline (with the EU AI Act §50(1) `[AI]` prefix —
+/// see `main.rs` for the rationale) and the usage block separately.
+#[derive(Debug, Parser)]
+pub struct InferenceStreamCmd {
+    /// Model ID to use.
+    model_id: String,
+
+    /// Prompt text.
+    message: String,
+
+    /// Optional micropayment channel id to bill streamed tokens against.
+    #[arg(long)]
+    channel: Option<String>,
+
+    /// Maximum output tokens.
+    #[arg(long, default_value_t = 1024)]
+    max_tokens: u64,
+
+    /// RPC endpoint
+    #[arg(long, default_value = "http://127.0.0.1:8545")]
+    rpc: String,
+}
+
+impl InferenceStreamCmd {
+    pub async fn execute(&self) -> Result<()> {
+        output::print_header("Streaming Inference");
+        output::print_field("Model", &self.model_id);
+        if let Some(ch) = &self.channel {
+            output::print_field("Channel", ch);
+        }
+
+        let mut params = serde_json::Map::new();
+        params.insert(
+            "model_id".to_string(),
+            serde_json::Value::String(self.model_id.clone()),
+        );
+        params.insert(
+            "message".to_string(),
+            serde_json::Value::String(self.message.clone()),
+        );
+        params.insert(
+            "max_tokens".to_string(),
+            serde_json::Value::Number(self.max_tokens.into()),
+        );
+        if let Some(ch) = &self.channel {
+            params.insert(
+                "channel_id".to_string(),
+                serde_json::Value::String(ch.clone()),
+            );
+        }
+
+        let spinner = output::create_spinner("Streaming...");
+        use crate::rpc::RpcClient;
+        let rpc = RpcClient::new(&self.rpc);
+        let result: serde_json::Value = rpc
+            .call("tenzro_chatStream", serde_json::Value::Object(params))
+            .await
+            .context("calling tenzro_chatStream")?;
+        spinner.finish_and_clear();
+
+        // Per EU AI Act Article 50(1): mark machine-generated text.
+        // Single source of truth lives in
+        // `tenzro_node::eu_ai_disclosure::render_cli_chat_chunk` so the
+        // workspace can audit the literal in one place.
+        let response_text = result
+            .get("result")
+            .and_then(|r| r.get("response"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if !response_text.is_empty() {
+            println!();
+            println!("{}", tenzro_node::eu_ai_disclosure::render_cli_chat_chunk(response_text));
+        }
+
+        if let Some(usage) = result.get("usage") {
+            println!();
+            output::print_header("Usage");
+            output::print_json(usage)?;
         }
 
         Ok(())

@@ -17,7 +17,11 @@ The official command-line interface for operating Tenzro Network nodes, managing
 - **Canton Integration**: DAML contract interaction
 - **Agent Operations**: Register agents, spawn from templates, manage swarms
 - **VRF Operations**: RFC 9381 ECVRF-EDWARDS25519-SHA512-TAI prove/verify/keygen
-- **Chat Interface**: Interactive REPL with local llama.cpp + RPC fallback
+- **AP2 / x402 / AAP**: Mandate validation, x402 facilitator payments, OAuth 2.1 + DPoP + RAR auth (with `aap` alias)
+- **ERC-8004 Registry**: Trustless agent registration, reputation feedback, validation requests (with `8004` alias)
+- **Approvals & Disputes**: Inspect pending out-of-scope approvals; read channel-dispute lifecycle records
+- **Provenance**: Fetch C2PA-style manifests for AI-generated content (EU AI Act §50(2))
+- **Chat Interface**: Interactive REPL with local llama.cpp + RPC fallback (output prefixed `[AI]` per EU AI Act §50(1))
 
 ## Installation
 
@@ -45,7 +49,7 @@ tenzro model list
 tenzro chat
 ```
 
-## Commands (39 top-level)
+## Commands (48 top-level)
 
 All commands use real JSON-RPC calls via reqwest. No artificial delays.
 
@@ -129,7 +133,17 @@ tenzro chat
 
 # Local llama.cpp inference with RPC fallback (tenzro_chat)
 # Commands: /history, /load <session_id>, /exit
+
+# Stream a single chat completion via tenzro_chatStream, optionally billing
+# the streamed tokens to a micropayment channel.
+tenzro inference stream gemma4-9b "summarize this paragraph" --max-tokens 256
+tenzro inference stream gemma4-9b "summarize this paragraph" --channel <channel_id>
 ```
+
+All chat output (REPL, single-shot, streaming) is prefixed with `[AI]` per
+EU AI Act Article 50(1). The literal lives in
+`tenzro_node::eu_ai_disclosure::render_cli_chat_chunk` so the workspace can
+audit the disclosure string in one place.
 
 ### Multi-Modal Inference
 
@@ -274,6 +288,131 @@ tenzro payment receipt <session_id>
 
 # Get payment info
 tenzro payment info
+```
+
+### x402 (Coinbase HTTP-402) Operations
+
+Tenzro is an x402 facilitator: clients build the `X-PAYMENT` header from a
+`402 Payment Required` challenge, and the node verifies and settles via the
+configured scheme adapter (`exact`, `permit2`, ...).
+
+```bash
+# Enumerate scheme adapters registered with the facilitator
+# (calls tenzro_listX402Schemes)
+tenzro x402 list-schemes
+
+# Submit an X-PAYMENT payload against a challenge
+# (calls tenzro_payX402). The CLI does not sign payloads — that is the
+# principal's job per the AP2 separation-of-duties rule.
+tenzro x402 pay --challenge-file ./challenge.json --payload-file ./payment.json
+```
+
+For the higher-level `tenzro payment pay --protocol x402` flow, see the
+"Payment Operations" section above.
+
+### AAP (Agent Access Protocol)
+
+`tenzro aap` is an alias for `tenzro auth`. AAP is the agent-facing layering
+on top of OAuth 2.1 + DPoP + RAR; the underlying RPCs are the same
+`tenzro_*Token*` and wallet-link methods exposed by `auth`. Both names work
+identically — pick the one that matches how you think about the operation.
+
+```bash
+# Refresh an access token (works under either name)
+tenzro auth refresh --refresh-token <token>
+tenzro aap refresh --refresh-token <token>
+
+# Link a wallet for auth (works under either name)
+tenzro auth link-wallet --did <did> --wallet <addr>
+tenzro aap link-wallet --did <did> --wallet <addr>
+```
+
+### ERC-8004 Trustless Agents Registry
+
+`tenzro 8004` is an alias for `tenzro erc8004` with the canonical short name
+from EIP-8004. Both names hit the same registry RPCs (`tenzro_8004*`).
+
+```bash
+# Register an agent in the registry
+tenzro 8004 register --did <did> --domain <agent.example.com>
+tenzro erc8004 register --did <did> --domain <agent.example.com>
+
+# Submit reputation feedback for an agent
+tenzro 8004 submit-feedback --agent-id <id> --score <0-100> --reason "..."
+
+# Look up an agent
+tenzro 8004 get-agent --agent-id <id>
+
+# Validation request / submission (verifiable agent work)
+tenzro 8004 request-validation --agent-id <id> --task <task>
+tenzro 8004 submit-validation --validation-id <id> --result <result>
+```
+
+`agentId = keccak256(utf8(did_string))` matches the native Tenzro
+identity registry, so the same calldata works against either surface.
+
+### Reputation
+
+```bash
+# Read the current score for a provider address
+# (calls tenzro_getProviderReputation; integer 0-1000).
+# Reputation update rule: +1 per successful inference (saturating to 1000),
+# -5 per failure (saturating to 0). Durable in RocksDB across restarts.
+tenzro reputation get 0xabc...
+```
+
+### Approval Flow
+
+When a delegated machine attempts an operation outside its `DelegationScope`
+(value cap, daily-spend cap, restricted contract, etc.), the auth engine
+parks the request as a pending approval keyed to the controller's DID. These
+commands are the controller's review surface; each maps 1:1 to an existing
+RPC.
+
+```bash
+# List approvals waiting on this controller DID
+# (calls tenzro_listPendingApprovals; node lazily expires stale entries)
+tenzro approval list --approver-did <did>
+
+# Inspect a single approval record
+# (calls tenzro_getApproval)
+tenzro approval get <approval_id>
+
+# Apply a decision. --approver-did is optional but recommended:
+# supplying it makes the node verify the caller matches the record's
+# approver, returning -32001 (Forbidden) on mismatch.
+# (calls tenzro_decideApproval)
+tenzro approval decide --approval-id <id> --decision approved --approver-did <did>
+tenzro approval decide --approval-id <id> --decision denied
+```
+
+### Channel Disputes
+
+Micropayment-channel disputes are first-class records in the settlement
+engine. These read-only commands inspect dispute lifecycle records;
+open/respond/resolve transitions happen via on-chain settlement
+transactions, not here.
+
+```bash
+# Show the current state of a dispute by id
+# (calls tenzro_getDispute; -32004 if no record)
+tenzro dispute status <dispute_id>
+
+# List every dispute (open or historical) attached to a channel
+# (calls tenzro_listDisputesByChannel; empty list, not error, if none)
+tenzro dispute list-by-channel --channel-id <channel_id>
+```
+
+### Provenance (EU AI Act §50(2))
+
+Tenzro records a C2PA-style `ProvenanceManifest` per AI-generated content,
+keyed by `content_hash` (SHA-256 of the output bytes). Validators sign and
+persist these manifests; this command fetches one back.
+
+```bash
+# Fetch the cached manifest for a 32-byte content hash
+# (calls tenzro_getProvenance; -32004 if no manifest exists for this hash)
+tenzro provenance get 0x<sha256_hex>
 ```
 
 ### Agent Operations
@@ -750,7 +889,7 @@ The CLI is organized into several modules:
 - `output.rs` - Output formatting utilities (tables, progress bars, colors)
 - `rpc.rs` - Real JSON-RPC client (reqwest)
 - `config.rs` - Configuration management
-- `commands/` - Command implementations (39 modules)
+- `commands/` - Command implementations (48 modules)
 
 All commands use real JSON-RPC calls to tenzro-node RPC endpoints. No simulated calls, no artificial delays.
 

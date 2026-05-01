@@ -708,6 +708,14 @@ pub struct AgentSpawnTemplateCmd {
     #[arg(long, default_value = "CLI User")]
     display_name: String,
 
+    /// Optional parent machine DID. When set, the spawned agent's
+    /// effective delegation scope is the strict intersection of the
+    /// parent's scope and the template's spec — the child can never be
+    /// broader than its parent on any axis (numeric ceilings,
+    /// allow-lists, time bound).
+    #[arg(long)]
+    parent_machine_did: Option<String>,
+
     /// RPC endpoint
     #[arg(long, default_value = "http://127.0.0.1:8545")]
     rpc: String,
@@ -722,12 +730,17 @@ impl AgentSpawnTemplateCmd {
         let spinner = output::create_spinner("Spawning agent (identity + wallet + delegation)...");
         let rpc = RpcClient::new(&self.rpc);
 
+        let mut payload = serde_json::json!({
+            "template_id": self.template_id,
+            "display_name": self.display_name,
+        });
+        if let Some(parent) = &self.parent_machine_did {
+            payload["parent_machine_did"] = serde_json::Value::String(parent.clone());
+        }
+
         let result: serde_json::Value = rpc.call(
             "tenzro_spawnAgentTemplate",
-            serde_json::json!({
-                "template_id": self.template_id,
-                "display_name": self.display_name,
-            }),
+            payload,
         ).await?;
         spinner.finish_and_clear();
 

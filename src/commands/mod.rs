@@ -45,6 +45,11 @@ pub mod cct;
 pub mod train;
 pub mod multimodal;
 pub mod auth;
+pub mod x402;
+pub mod reputation;
+pub mod approval;
+pub mod dispute;
+pub mod provenance;
 
 // Re-export command types
 pub use node::NodeCommand;
@@ -91,3 +96,8 @@ pub use multimodal::{
     DetectCommand, EmbedTextCommand, EmbedVideoCommand, SegmentCommand, TranscribeCommand,
 };
 pub use auth::AuthCommand;
+pub use x402::X402Command;
+pub use reputation::ReputationCommand;
+pub use approval::ApprovalCommand;
+pub use dispute::DisputeCommand;
+pub use provenance::ProvenanceCommand;
