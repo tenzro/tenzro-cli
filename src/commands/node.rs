@@ -21,6 +21,8 @@ pub enum NodeCommand {
     Syncing(NodeSyncingCmd),
     /// Fetch a contiguous range of blocks for sync inspection
     SyncRange(NodeSyncRangeCmd),
+    /// Inspect the EIP-1559 fee market (current gas price, suggested tip, fee history)
+    FeeMarket(NodeFeeMarketCmd),
 }
 
 impl NodeCommand {
@@ -32,6 +34,7 @@ impl NodeCommand {
             Self::Peers(cmd) => cmd.execute().await,
             Self::Syncing(cmd) => cmd.execute().await,
             Self::SyncRange(cmd) => cmd.execute().await,
+            Self::FeeMarket(cmd) => cmd.execute().await,
         }
     }
 }
@@ -429,5 +432,107 @@ impl NodeSyncRangeCmd {
             ));
         }
         Ok(())
+    }
+}
+
+/// Inspect the EIP-1559 fee market.
+///
+/// Calls `eth_gasPrice` (effective price = base fee + suggested tip),
+/// `eth_maxPriorityFeePerGas` (suggested tip), and `eth_feeHistory` over the
+/// last `--blocks` blocks to summarize current network fee conditions. Useful
+/// for operators sizing `maxFeePerGas` / `maxPriorityFeePerGas` on Type-2
+/// transactions, or watching base-fee drift across a load spike.
+#[derive(Debug, Parser)]
+pub struct NodeFeeMarketCmd {
+    /// RPC endpoint
+    #[arg(long, default_value = "http://127.0.0.1:8545")]
+    rpc: String,
+
+    /// Number of recent blocks to include in fee-history summary (1..=1024)
+    #[arg(long, default_value = "10")]
+    blocks: u64,
+
+    /// Tip percentiles to request (e.g. "25,50,75")
+    #[arg(long, default_value = "25,50,75")]
+    percentiles: String,
+
+    /// Output format (text, json)
+    #[arg(long, default_value = "text")]
+    format: String,
+}
+
+impl NodeFeeMarketCmd {
+    pub async fn execute(&self) -> Result<()> {
+        use crate::rpc::RpcClient;
+
+        if self.blocks == 0 || self.blocks > 1024 {
+            return Err(anyhow::anyhow!(
+                "--blocks must be in 1..=1024 (got {})",
+                self.blocks
+            ));
+        }
+
+        let percentiles: Vec<f64> = self
+            .percentiles
+            .split(',')
+            .filter(|s| !s.is_empty())
+            .map(|s| s.trim().parse::<f64>())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| anyhow::anyhow!("invalid --percentiles: {}", e))?;
+
+        let rpc = RpcClient::new(&self.rpc);
+
+        let gas_price_hex: String = rpc
+            .call("eth_gasPrice", serde_json::json!([]))
+            .await?;
+        let priority_hex: String = rpc
+            .call("eth_maxPriorityFeePerGas", serde_json::json!([]))
+            .await?;
+        let history: serde_json::Value = rpc
+            .call(
+                "eth_feeHistory",
+                serde_json::json!([format!("0x{:x}", self.blocks), "latest", percentiles]),
+            )
+            .await?;
+
+        if self.format == "json" {
+            let combined = serde_json::json!({
+                "gasPrice": gas_price_hex,
+                "maxPriorityFeePerGas": priority_hex,
+                "feeHistory": history,
+            });
+            output::print_json(&combined)?;
+            return Ok(());
+        }
+
+        output::print_header("Fee Market (EIP-1559)");
+        output::print_field("Effective Gas Price (wei)", &parse_hex_u128_str(&gas_price_hex));
+        output::print_field("Suggested Priority Tip (wei)", &parse_hex_u128_str(&priority_hex));
+
+        if let Some(base_fees) = history.get("baseFeePerGas").and_then(|v| v.as_array()) {
+            output::print_field(
+                "Base Fee Samples",
+                &format!("{} entries (last = next-block prediction)", base_fees.len()),
+            );
+            if let Some(next) = base_fees.last().and_then(|v| v.as_str()) {
+                output::print_field("Next-Block Base Fee (wei)", &parse_hex_u128_str(next));
+            }
+        }
+
+        if let Some(ratios) = history.get("gasUsedRatio").and_then(|v| v.as_array()) {
+            let avg: f64 = ratios.iter().filter_map(|v| v.as_f64()).sum::<f64>()
+                / ratios.len().max(1) as f64;
+            output::print_field("Avg Gas-Used Ratio", &format!("{:.3}", avg));
+        }
+
+        Ok(())
+    }
+}
+
+fn parse_hex_u128_str(hex: &str) -> String {
+    let stripped = hex.trim_start_matches("0x");
+    match u128::from_str_radix(stripped, 16) {
+        Ok(v) => v.to_string(),
+        Err(_) => hex.to_string(),
     }
 }
