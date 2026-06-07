@@ -49,7 +49,7 @@ tenzro model list
 tenzro chat
 ```
 
-## Commands (51 command modules)
+## Commands (63 command modules)
 
 All commands use real JSON-RPC calls via reqwest. No artificial delays.
 
@@ -204,8 +204,8 @@ tenzro detect --model rf-detr-medium --image ./photo.png --threshold 0.5
 tenzro transcribe --model whisper-large-v3-turbo --audio ./clip.wav
 
 # Video embedding (tenzro_videoEmbed)
-# Wave 1: catalog empty, scaffolding only
-tenzro embed-video --model <pending> --video ./clip.mp4
+# Native catalog is empty; register a vision-pooled fallback (DINOv3 / SigLIP2 / CLIP) to embed clips
+tenzro embed-video --model dinov3-vitb16-pooled --video ./clip.mp4
 ```
 
 License-tier gating applies on first load: CommercialCustom models (DINOv3, SAM, Gemma) require `--accept-license <id>`; non-commercial models require `--accept-non-commercial`.
@@ -1039,7 +1039,7 @@ The CLI is organized into several modules:
 - `output.rs` - Output formatting utilities (tables, progress bars, colors)
 - `rpc.rs` - Real JSON-RPC client (reqwest)
 - `config.rs` - Configuration management
-- `commands/` - Command implementations (51 modules: agent, ap2, app, approval, auth, bond, bridge, canton, cct, compliance, contract, cortex, crosschain, crypto, custody, debridge, dispute, erc8004, escrow, events, governance, hardware, identity, inference, insurance, join, lifi, marketplace, model, multimodal, nft, node, payment, provenance, provider, reputation, schedule, skill, stake, task, tee, token, tool, train, username, vrf, wallet, wormhole, x402, zk)
+- `commands/` - Command implementations (63 modules: adaptive_burn, admin, agent, ap2, app, approval, auth, bond, bridge, canton, capability, capital, cct, compliance, contract, cortex, crosschain, crypto, custody, debridge, dispute, erc7579, erc7683, erc8004, escrow, events, governance, hardware, identity, inference, insurance, interop, iroh, join, key, lifi, marketplace, memory, model, multimodal, nft, node, payment, pq_hybrid, provenance, provider, reputation, schedule, seed_agent, skill, stake, task, tee, token, tool, train, username, validator, vrf, wallet, wormhole, x402, zk)
 
 All commands use real JSON-RPC calls to tenzro-node RPC endpoints. No simulated calls, no artificial delays.
 
