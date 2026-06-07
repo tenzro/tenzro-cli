@@ -599,17 +599,30 @@ tenzro agent terminate \
   --cascade
 ```
 
-### Canton Integration
+### Canton Integration (Canton 3.5+ JSON Ledger API)
+
+All `tenzro canton ...` subcommands route through the local Tenzro node,
+which proxies to its configured Canton participant. Callers never see
+the Auth0 secret. Every method requires an API key with scope `canton`
+(passed via `--api-key` or `TENZRO_API_KEY` env var).
 
 ```bash
-# List Canton domains (tenzro_listCantonDomains)
-tenzro canton domains
+# Existing core commands
+tenzro canton domains                              # tenzro_listCantonDomains
+tenzro canton contracts --template '<tid>'         # tenzro_listDamlContracts
+tenzro canton submit <command>                     # tenzro_submitDamlCommand
 
-# List DAML contracts (tenzro_listDamlContracts)
-tenzro canton contracts
-
-# Submit DAML command (tenzro_submitDamlCommand)
-tenzro canton submit <command>
+# Canton 3.5+ extension surface
+tenzro canton health                               # /livez + /readyz + /v2/version
+tenzro canton version                              # /v2/version + CIP feature flags
+tenzro canton my-user                              # GET /v2/users/<client_id>@clients (CIP-26)
+tenzro canton parties                              # GET /v2/parties/known
+tenzro canton packages                             # GET /v2/packages — installed DAR ids
+tenzro canton coin-balance                         # CIP-56 Canton Coin balance
+tenzro canton fee-schedule                         # latest Splice.AmuletRules:AmuletRules
+tenzro canton connected-synchronizers              # GET /v2/state/connected-synchronizers
+tenzro canton get-transaction --update-id <hex>    # GET /v2/updates/transaction-tree-by-id
+tenzro canton upload-dar --file path/to/my.dar     # POST /v2/packages (single Content-Type)
 ```
 
 ### Escrow Operations
