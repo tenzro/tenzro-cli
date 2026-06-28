@@ -15,6 +15,9 @@ pub enum ClusterCommand {
     /// view — derives the model shape from the GGUF header and discovers LAN
     /// members from gossip. Takes just a model ID.
     Preview(PreviewCmd),
+    /// List the local node and every LAN/gossip member it can pool into a
+    /// cluster — model-independent discovery of who's on your network.
+    Members(MembersCmd),
 }
 
 impl ClusterCommand {
@@ -22,6 +25,7 @@ impl ClusterCommand {
         match self {
             Self::Plan(cmd) => cmd.execute().await,
             Self::Preview(cmd) => cmd.execute().await,
+            Self::Members(cmd) => cmd.execute().await,
         }
     }
 }
@@ -212,6 +216,65 @@ impl PreviewCmd {
                         &format!("{} layers [{}, {})", address, start, end),
                     );
                 }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Parser)]
+pub struct MembersCmd {
+    /// RPC endpoint
+    #[arg(long, default_value = "http://127.0.0.1:8545")]
+    rpc: String,
+}
+
+impl MembersCmd {
+    pub async fn execute(self) -> Result<()> {
+        output::print_header("Cluster Members");
+
+        let spinner = output::create_spinner("Discovering members on the local network...");
+        let rpc = rpc::RpcClient::new(&self.rpc);
+        let result: Result<serde_json::Value> =
+            rpc.call("tenzro_clusterMembers", serde_json::json!({})).await;
+        spinner.finish_and_clear();
+
+        let value = match result {
+            Ok(v) => v,
+            Err(e) => {
+                output::print_error(&format!("Failed to discover cluster members: {}", e));
+                return Ok(());
+            }
+        };
+
+        println!();
+        if let Some(n) = value.get("member_count").and_then(|v| v.as_u64()) {
+            output::print_field("Total", &n.to_string());
+        }
+        if let Some(n) = value.get("local_count").and_then(|v| v.as_u64()) {
+            output::print_field("On LAN", &n.to_string());
+        }
+        if let Some(g) = value.get("total_vram_gb").and_then(|v| v.as_f64()) {
+            output::print_field("Pooled Memory", &format!("{:.1} GB", g));
+        }
+
+        if let Some(members) = value.get("members").and_then(|v| v.as_array()) {
+            println!();
+            for m in members {
+                let address = m.get("address").and_then(|v| v.as_str()).unwrap_or("?");
+                let vram = m.get("vram_gb").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let backend = m.get("backend").and_then(|v| v.as_str()).unwrap_or("?");
+                let reach = m.get("reachability").and_then(|v| v.as_str()).unwrap_or("?");
+                let head = if m.get("is_head").and_then(|v| v.as_bool()).unwrap_or(false) {
+                    " [head]"
+                } else {
+                    ""
+                };
+                output::print_field(
+                    &format!("  {}", address),
+                    &format!("{:.1} GB {} {}{}", vram, backend, reach, head),
+                );
             }
         }
 
