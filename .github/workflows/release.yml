@@ -41,6 +41,7 @@ jobs:
         with:
           repository: tenzro/tenzro-network
           token: ${{ secrets.REPO_TOKEN }}
+          submodules: recursive
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
