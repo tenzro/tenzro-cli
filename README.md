@@ -51,7 +51,7 @@ tenzro model list
 tenzro chat
 ```
 
-## Commands (96 command modules)
+## Commands (101 command modules)
 
 All commands use real JSON-RPC calls via reqwest. No artificial delays.
 
@@ -135,6 +135,60 @@ tenzro cluster members
 model across a cluster you do not need to compute or pass a plan: `tenzro
 model serve` reads the model shape from the GGUF and auto-discovers members
 over local gossip (see the Model Management section above and AI.md §3.5).
+
+### Decentralized App Hosting
+
+Publish a static site, a `wasi:http` function, or a long-lived server to
+Tenzro nodes and serve it over the public internet — no manual TLS, DNS, or
+reverse-proxy setup. See [`docs/HOSTING.md`](../../docs/HOSTING.md) for the
+full RPC and CLI surface.
+
+All mutations take a `--did-envelope` (a signed header value proving control
+of `--owner-did`).
+
+```bash
+# Static sites — deploy a build-output directory: upload files,
+# build the route map of content-addressed blobs, publish.
+tenzro site deploy --name myapp --dir ./dist \
+  --owner-did did:tenzro:machine:... --did-envelope <hex>
+tenzro site get --site-id site-...
+tenzro site list --owner-did did:tenzro:machine:...
+tenzro site remove --site-id site-... \
+  --owner-did did:tenzro:machine:... --did-envelope <hex>
+
+# Point a hostname (a subdomain of your operator's app domain) at a site.
+tenzro site set-alias --hostname myapp.apps.tenzro.xyz --site-id site-... \
+  --owner-did did:tenzro:machine:... --did-envelope <hex>
+tenzro site list-aliases --owner-did did:tenzro:machine:...
+
+# Bring your own custom domain: claim, publish the printed DNS records,
+# then verify to trigger certificate issuance.
+tenzro site domain add --hostname www.example.com --site-id site-... \
+  --owner-did did:tenzro:machine:... --did-envelope <hex>
+tenzro site domain verify --hostname www.example.com \
+  --owner-did did:tenzro:machine:... --did-envelope <hex>
+
+# Pin a site to specific serving nodes (repeat --serving-node per node);
+# omit placement to serve locally.
+tenzro site set-placement --site-id site-... --serving-node <EndpointId> \
+  --owner-did did:tenzro:machine:... --did-envelope <hex>
+
+# Functions — a wasi:http component answers requests in a wasmtime sandbox.
+tenzro function deploy --name myfn --wasm ./component.wasm \
+  --owner-did did:tenzro:machine:... --did-envelope <hex>
+tenzro function list --owner-did did:tenzro:machine:...
+
+# Machines — an unmodified server in a Firecracker microVM (operator nodes
+# with KVM + nested-virt). --env secrets are sealed client-side to the
+# assigned node's sealing key before upload.
+tenzro machine deploy --name mysrv --image ./rootfs.ext4 --internal-port 8080 \
+  --owner-did did:tenzro:machine:... --did-envelope <hex>
+tenzro machine status --id machine-...
+
+# Placement leases across all three runtime classes.
+tenzro lease list
+tenzro lease get --app-id site-...
+```
 
 ### Managed Databases
 
@@ -1302,7 +1356,7 @@ The CLI is organized into several modules:
 - `output.rs` - Output formatting utilities (tables, progress bars, colors)
 - `rpc.rs` - Real JSON-RPC client (reqwest)
 - `config.rs` - Configuration management
-- `commands/` - Command implementations (63 modules: adaptive_burn, admin, agent, ap2, app, approval, auth, bond, bridge, canton, capability, capital, cct, compliance, contract, cortex, crosschain, crypto, custody, debridge, dispute, erc7579, erc7683, erc8004, escrow, events, governance, hardware, identity, inference, insurance, interop, iroh, join, key, lifi, marketplace, memory, model, multimodal, nft, node, payment, pq_hybrid, provenance, provider, reputation, schedule, seed_agent, skill, stake, task, tee, token, tool, train, username, validator, vrf, wallet, wormhole, x402, zk)
+- `commands/` - Command implementations (101 modules: adaptive_burn, admin, agent, ap2, app, approval, attested_clock, auth, axelar, babylon, bitvm2, bond, bridge, bridge_fee, caip, canton, capability, capital, ccip, cct, cluster, compliance, contract, cortex, crosschain, crypto, custody, da, database, debridge, discover, dispute, eip7702, erc7579, erc7683, erc8004, escrow, events, function, global_supply, governance, hardware, hyperbridge, hyperlane, ibc_eureka, identity, institution, insurance, interop, inference, iroh, ivms101, join, keri, key, lease, lifi, machine, marketplace, mcp, memory, moe, model, multimodal, near_chain_sig, nft, node, passkey, payment, permit2, pq_hybrid, presign, provenance, provider, reputation, resources, schedule, secure_mint, seed_agent, siwt, site, skill, stable_asset, stake, stargate_v2, task, tee, token, tool, train, treasury, urwa, username, validator, vrf, wallet, workflow, wormhole, wormhole_ntt, x402, zk)
 
 All commands use real JSON-RPC calls to tenzro-node RPC endpoints. No simulated calls, no artificial delays.
 
